@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { BarChart, LineChart, Users, GitBranch, ArrowUp, ArrowDown } from "lucide-react"
+import { BarChart as BarChartIcon, LineChart as LineChartIcon, Users, GitBranch, ArrowUp, ArrowDown } from "lucide-react"
 import {
   ChartContainer,
   ChartTooltip,
@@ -10,7 +10,7 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from "@/components/ui/chart"
-import { Bar, CartesianGrid, XAxis, YAxis, Line, Tooltip, ResponsiveContainer, Legend } from "recharts"
+import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, Legend, LineChart, Line } from "recharts"
 
 const chartData = [
   { month: "January", desktop: 186, mobile: 80 },
@@ -40,7 +40,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Storage Used</CardTitle>
-            <BarChart className="h-4 w-4 text-muted-foreground" />
+            <BarChartIcon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">12.5 GB / 50 GB</div>
@@ -89,24 +89,22 @@ export default function DashboardPage() {
              <CardDescription>Monthly file uploads from different devices.</CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
-             <ChartContainer config={chartConfig} className="h-[350px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                    <CartesianGrid vertical={false} />
-                    <XAxis
-                    dataKey="month"
-                    tickLine={false}
-                    tickMargin={10}
-                    axisLine={false}
-                    tickFormatter={(value) => value.slice(0, 3)}
-                    />
-                    <YAxis />
-                    <Tooltip content={<ChartTooltipContent />} />
-                    <Legend content={<ChartLegendContent />} />
-                    <Bar dataKey="desktop" fill="var(--color-desktop)" radius={4} />
-                    <Bar dataKey="mobile" fill="var(--color-mobile)" radius={4} />
-                </BarChart>
-                </ResponsiveContainer>
+            <ChartContainer config={chartConfig} className="h-[350px] w-full">
+              <BarChart data={chartData}>
+                  <CartesianGrid vertical={false} />
+                  <XAxis
+                  dataKey="month"
+                  tickLine={false}
+                  tickMargin={10}
+                  axisLine={false}
+                  tickFormatter={(value) => value.slice(0, 3)}
+                  />
+                  <YAxis />
+                  <Tooltip content={<ChartTooltipContent />} />
+                  <Legend content={<ChartLegendContent />} />
+                  <Bar dataKey="desktop" fill="var(--color-desktop)" radius={4} />
+                  <Bar dataKey="mobile" fill="var(--color-mobile)" radius={4} />
+              </BarChart>
             </ChartContainer>
           </CardContent>
         </Card>
@@ -119,7 +117,6 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <ChartContainer config={chartConfig} className="h-[350px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="month" tickFormatter={(value) => value.slice(0, 3)} />
@@ -129,7 +126,6 @@ export default function DashboardPage() {
                   <Line type="monotone" dataKey="desktop" stroke="var(--color-desktop)" strokeWidth={2} />
                   <Line type="monotone" dataKey="mobile" stroke="var(--color-mobile)" strokeWidth={2} />
                 </LineChart>
-              </ResponsiveContainer>
             </ChartContainer>
           </CardContent>
         </Card>
