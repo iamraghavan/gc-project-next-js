@@ -2,6 +2,7 @@
 
 import { db } from '@/lib/firebase';
 import { doc, setDoc, getDoc } from "firebase/firestore"; 
+import { logActivity } from './logging';
 
 
 export interface Repository {
@@ -76,6 +77,8 @@ export async function createRepository(name: string): Promise<Repository> {
             }),
         });
         
+        await logActivity('create_repo', { repoFullName: newRepo.full_name, path: newRepo.name });
+        
         // Add a README to avoid empty repo issues
         await githubApi(`/repos/${newRepo.full_name}/contents/README.md`, {
             method: 'PUT',
@@ -114,6 +117,7 @@ export async function createFolder(repoFullName: string, path: string): Promise<
             content: '' // empty content for .gitkeep
         })
     });
+    await logActivity('create_folder', { repoFullName, path });
 }
 
 export async function uploadFile(repoFullName: string, path: string, content: string): Promise<void> {
@@ -125,6 +129,7 @@ export async function uploadFile(repoFullName: string, path: string, content: st
             content: content,
         })
     });
+    await logActivity('upload', { repoFullName, path });
 }
 
 
@@ -133,6 +138,7 @@ export async function saveFileMetadata(repoFullName: string, filePath: string, m
         const docId = `${repoFullName}:${filePath}`.replace(/\//g, '_');
         const docRef = doc(db, "fileMetadata", docId);
         await setDoc(docRef, metadata, { merge: true });
+        await logActivity('set_expiration', { repoFullName, path: filePath, expiration: metadata.expiration });
     } catch (error) {
         console.error("Error saving file metadata:", error);
         throw error;
