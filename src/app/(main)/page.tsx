@@ -18,7 +18,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
-import { type Repository } from "@/services/github"
+import { type Repository, getRepoContents } from "@/services/github"
+import { formatDistanceToNow } from "date-fns"
 
 
 export default function FilesPage() {
@@ -27,6 +28,29 @@ export default function FilesPage() {
   const [uploadProgress, setUploadProgress] = React.useState(0);
   const [files, setFiles] = React.useState<FileItem[]>([])
   const [selectedRepo, setSelectedRepo] = React.useState<Repository | null>(null)
+  const [path, setPath] = React.useState<string[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+
+
+  React.useEffect(() => {
+    if (selectedRepo) {
+      setIsLoading(true);
+      getRepoContents({ repoFullName: selectedRepo.full_name, path: path.join('/') })
+        .then(contents => {
+            const mappedFiles: FileItem[] = contents.map((item: any) => ({
+                id: item.sha,
+                name: item.name,
+                type: item.type === 'dir' ? 'folder' : 'file',
+                size: item.size ? `${(item.size / 1024).toFixed(2)} KB` : '-',
+                lastModified: formatDistanceToNow(new Date(), { addSuffix: true }), // This is a placeholder
+                tags: [],
+                path: item.path,
+            }));
+            setFiles(mappedFiles);
+        })
+        .finally(() => setIsLoading(false));
+    }
+  }, [selectedRepo, path])
 
   const handleUpload = () => {
     setIsUploading(true);
@@ -44,6 +68,20 @@ export default function FilesPage() {
     }, 200);
   }
 
+  const handleFileSelect = (file: FileItem | null) => {
+    if (file && file.type === 'folder') {
+        setPath([...path, file.name]);
+        setSelectedFile(null);
+    } else {
+        setSelectedFile(file)
+    }
+  }
+
+  const handleBreadcrumbClick = (index: number) => {
+    setPath(path.slice(0, index + 1));
+  };
+
+
   return (
     <main className="flex-1 flex flex-col p-4 gap-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -51,11 +89,21 @@ export default function FilesPage() {
           <RepoSwitcher onRepoChange={setSelectedRepo} />
           <Breadcrumb>
             <BreadcrumbList>
-              <BreadcrumbItem><BreadcrumbLink href="/">root</BreadcrumbLink></BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem><BreadcrumbLink href="/docs">documents</BreadcrumbLink></BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem><BreadcrumbLink href="/docs/project">project</BreadcrumbLink></BreadcrumbItem>
+              <BreadcrumbItem>
+                <BreadcrumbLink href="#" onClick={() => setPath([])}>
+                  root
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              {path.map((item, index) => (
+                <React.Fragment key={index}>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbLink href="#" onClick={() => handleBreadcrumbClick(index)}>
+                      {item}
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                </React.Fragment>
+              ))}
             </BreadcrumbList>
           </Breadcrumb>
         </div>
@@ -95,7 +143,7 @@ export default function FilesPage() {
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1">
         <div className="lg:col-span-2">
-          <FileBrowser files={files} selectedFile={selectedFile} onFileSelect={setSelectedFile} />
+          <FileBrowser files={files} selectedFile={selectedFile} onFileSelect={handleFileSelect} isLoading={isLoading} />
         </div>
         <div className="lg:col-span-1">
           <FileDetails file={selectedFile} repo={selectedRepo} />

@@ -9,6 +9,17 @@ export interface Repository {
     description: string | null;
 }
 
+export interface File {
+    name: string;
+    path: string;
+    sha: string;
+    size: number;
+    type: 'file' | 'dir';
+    html_url: string;
+    download_url: string | null;
+}
+
+
 const GITHUB_TOKEN = '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';
 const GITHUB_API_URL = 'https://api.github.com';
 
@@ -29,7 +40,9 @@ async function githubApi(endpoint: string, options: RequestInit = {}) {
     throw new Error(errorData.message || `GitHub API request failed: ${response.statusText}`);
   }
 
-  return response.json();
+  // Handle cases where response might be empty
+  const text = await response.text();
+  return text ? JSON.parse(text) : null;
 }
 
 export async function getRepositories(): Promise<Repository[]> {
@@ -56,5 +69,16 @@ export async function createRepository(name: string): Promise<Repository> {
     } catch (error) {
         console.error("Error creating repository:", error);
         throw error;
+    }
+}
+
+export async function getRepoContents(params: { repoFullName: string; path?: string }): Promise<File[]> {
+    const { repoFullName, path = '' } = params;
+    try {
+        const contents = await githubApi(`/repos/${repoFullName}/contents/${path}`);
+        return contents || [];
+    } catch (error) {
+        console.error(`Error fetching contents for ${repoFullName} at path ${path}:`, error);
+        return [];
     }
 }

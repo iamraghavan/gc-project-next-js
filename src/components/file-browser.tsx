@@ -13,6 +13,7 @@ import {
   Edit,
   Move,
   Copy,
+  Loader,
 } from "lucide-react"
 
 import {
@@ -33,6 +34,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "./ui/button"
+import { Skeleton } from "./ui/skeleton"
 
 export type FileItem = {
   id: string
@@ -57,11 +59,18 @@ export function FileBrowser({
   files,
   selectedFile,
   onFileSelect,
+  isLoading = false,
 }: {
   files: FileItem[]
   selectedFile: FileItem | null
   onFileSelect: (file: FileItem | null) => void
+  isLoading?: boolean
 }) {
+
+  const handleRowClick = (file: FileItem) => {
+    onFileSelect(file);
+  }
+
   return (
     <div className="rounded-lg border">
       <Table>
@@ -78,19 +87,38 @@ export function FileBrowser({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {files.map((file) => (
+          {isLoading && (
+            Array.from({ length: 5 }).map((_, index) => (
+              <TableRow key={index}>
+                <TableCell><Skeleton className="h-4 w-4" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-[200px]" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-[80px]" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-[120px]" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-[150px]" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-4" /></TableCell>
+              </TableRow>
+            ))
+          )}
+          {!isLoading && files.length === 0 && (
+             <TableRow>
+                <TableCell colSpan={6} className="h-24 text-center">
+                    No files or folders in this repository.
+                </TableCell>
+            </TableRow>
+          )}
+          {!isLoading && files.map((file) => (
             <TableRow
               key={file.id}
               className="cursor-pointer"
               data-selected={selectedFile?.id === file.id}
-              onClick={() => onFileSelect(file)}
+              onClick={() => handleRowClick(file)}
             >
               <TableCell>
                 <Checkbox checked={selectedFile?.id === file.id} />
               </TableCell>
               <TableCell className="font-medium">
                 <div className="flex items-center gap-2">
-                  {fileIcons[file.type]}
+                  {fileIcons[file.type as keyof typeof fileIcons] || fileIcons['file']}
                   <span>{file.name}</span>
                 </div>
               </TableCell>
