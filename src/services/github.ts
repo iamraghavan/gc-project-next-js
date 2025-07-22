@@ -1,5 +1,9 @@
 'use server';
 
+import { db } from '@/lib/firebase';
+import { doc, setDoc, getDoc } from "firebase/firestore"; 
+
+
 export interface Repository {
     id: number;
     name: string;
@@ -63,8 +67,20 @@ export async function createRepository(name: string): Promise<Repository> {
                 name,
                 private: true,
                 auto_init: true,
+                description: "Created with GitDrive"
             }),
         });
+        
+        // Add a README to avoid empty repo issues
+        await githubApi(`/repos/${newRepo.full_name}/contents/README.md`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message: 'Initial commit',
+                content: btoa('# GitDrive Repository\n\nThis repository was created by GitDrive.')
+            })
+        });
+
         return newRepo;
     } catch (error) {
         console.error("Error creating repository:", error);
@@ -80,5 +96,28 @@ export async function getRepoContents(params: { repoFullName: string; path?: str
     } catch (error) {
         console.error(`Error fetching contents for ${repoFullName} at path ${path}:`, error);
         return [];
+    }
+}
+
+export async function saveFileMetadata(repoFullName: string, filePath: string, metadata: { expiration: string | null }) {
+    try {
+        const docId = `${repoFullName}:${filePath}`.replace(/\//g, '_');
+        const docRef = doc(db, "fileMetadata", docId);
+        await setDoc(docRef, metadata, { merge: true });
+    } catch (error) {
+        console.error("Error saving file metadata:", error);
+        throw error;
+    }
+}
+
+export async function getFileMetadata(repoFullName: string, filePath: string) {
+    try {
+        const docId = `${repoFullName}:${filePath}`.replace(/\//g, '_');
+        const docRef = doc(db, "fileMetadata", docId);
+        const docSnap = await getDoc(docRef);
+        return docSnap.exists() ? docSnap.data() : null;
+    } catch (error) {
+        console.error("Error getting file metadata:", error);
+        return null;
     }
 }

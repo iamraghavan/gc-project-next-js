@@ -71,7 +71,7 @@ export default function RepoSwitcher({ className, onRepoChange }: RepoSwitcherPr
 
     try {
       const newRepo = await createRepository(newRepoName)
-      setRepositories(prev => [...prev, newRepo])
+      setRepositories(prev => [newRepo, ...prev])
       setSelectedRepo(newRepo)
       onRepoChange(newRepo)
       setCreateDialogOpen(false)
