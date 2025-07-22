@@ -10,7 +10,7 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from "@/components/ui/chart"
-import { Bar, CartesianGrid, XAxis, YAxis, Line, Tooltip, ResponsiveContainer } from "recharts"
+import { Bar, CartesianGrid, XAxis, YAxis, Line, Tooltip, ResponsiveContainer, Legend } from "recharts"
 
 const chartData = [
   { month: "January", desktop: 186, mobile: 80 },
