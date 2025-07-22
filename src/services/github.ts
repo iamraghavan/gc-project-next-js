@@ -14,7 +14,7 @@ export interface Repository {
     description: string | null;
 }
 
-export interface File {
+export interface FileItem {
     name: string;
     path: string;
     sha: string;
@@ -96,7 +96,7 @@ export async function createRepository(name: string): Promise<Repository> {
     }
 }
 
-export async function getRepoContents(params: { repoFullName: string; path?: string }): Promise<File[]> {
+export async function getRepoContents(params: { repoFullName: string; path?: string }): Promise<FileItem[]> {
     const { repoFullName, path = '' } = params;
     try {
         const contents = await githubApi(`/repos/${repoFullName}/contents/${path}`);
@@ -130,6 +130,91 @@ export async function uploadFile(repoFullName: string, path: string, content: st
         })
     });
     await logActivity('upload', { repoFullName, path });
+}
+
+export async function deleteItem(repoFullName: string, path: string, sha: string, isFolder: boolean): Promise<void> {
+    if (isFolder) {
+        const contents = await getRepoContents({ repoFullName, path });
+        for (const item of contents) {
+            await deleteItem(repoFullName, item.path, item.sha, item.type === 'dir');
+        }
+    }
+
+    await githubApi(`/repos/${repoFullName}/contents/${path}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            message: `Delete ${isFolder ? 'folder' : 'file'}: ${path}`,
+            sha,
+        }),
+    });
+    await logActivity('delete', { repoFullName, path });
+}
+
+
+export async function moveOrRenameItem(
+  repoFullName: string,
+  oldPath: string,
+  newPath: string
+): Promise<void> {
+  const { GITHUB_TOKEN: token } = process.env;
+
+  const repoOwner = repoFullName.split('/')[0];
+  const repoName = repoFullName.split('/')[1];
+  
+  // 1. Get the current branch
+  const repo = await githubApi(`/repos/${repoFullName}`);
+  const branch = repo.default_branch;
+
+  // 2. Get the last commit SHA of the branch
+  const refData = await githubApi(`/repos/${repoFullName}/git/ref/heads/${branch}`);
+  const lastCommitSha = refData.object.sha;
+  
+  // 3. Get the tree of the last commit
+  const commitData = await githubApi(`/repos/${repoFullName}/git/commits/${lastCommitSha}`);
+  const treeSha = commitData.tree.sha;
+
+  // 4. Create a new tree for the move/rename
+  const { tree } = await githubApi(`/repos/${repoFullName}/git/trees/${treeSha}?recursive=1`);
+  
+  const newTree = tree.map((item: any) => {
+    if (item.path === oldPath) {
+      return { ...item, path: newPath };
+    }
+    if (item.path.startsWith(`${oldPath}/`)) {
+       return { ...item, path: item.path.replace(oldPath, newPath) };
+    }
+    return item;
+  }).map(({ url, sha, ...rest }: any) => ({ ...rest, sha: sha as string | null }));
+
+
+  const newTreeData = await githubApi(`/repos/${repoFullName}/git/trees`, {
+      method: 'POST',
+      body: JSON.stringify({
+          base_tree: treeSha,
+          tree: newTree
+      })
+  });
+  
+  // 5. Create a new commit with the new tree
+  const newCommit = await githubApi(`/repos/${repoFullName}/git/commits`, {
+      method: 'POST',
+      body: JSON.stringify({
+          message: `Move/rename ${oldPath} to ${newPath}`,
+          tree: newTreeData.sha,
+          parents: [lastCommitSha]
+      })
+  });
+
+  // 6. Update the branch reference to point to the new commit
+  await githubApi(`/repos/${repoFullName}/git/refs/heads/${branch}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+          sha: newCommit.sha
+      })
+  });
+
+  await logActivity('move', { repoFullName, path: newPath, oldPath: oldPath });
 }
 
 

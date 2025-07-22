@@ -55,6 +55,7 @@ export default function FilesPage() {
                 lastModified: formatDistanceToNow(new Date(), { addSuffix: true }), // This is a placeholder
                 tags: [],
                 path: item.path,
+                sha: item.sha,
             }));
             setFiles(mappedFiles);
         })
@@ -112,7 +113,7 @@ export default function FilesPage() {
     if (!selectedRepo || !newFolderName) return;
 
     try {
-      const folderPath = [...path, newFolderName, '.gitkeep'].join('/');
+      const folderPath = [...path, newFolderName].join('/');
       await createFolder(selectedRepo.full_name, folderPath);
       toast({
         title: 'Folder Created',
@@ -250,7 +251,15 @@ export default function FilesPage() {
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1">
         <div className="lg:col-span-2">
-          <FileBrowser files={files} selectedFile={selectedFile} onFileSelect={handleFileSelect} isLoading={isLoading} />
+          <FileBrowser 
+            files={files} 
+            selectedFile={selectedFile} 
+            onFileSelect={handleFileSelect} 
+            isLoading={isLoading}
+            repo={selectedRepo}
+            onRefresh={fetchFiles}
+            currentPath={path}
+          />
         </div>
         <div className="lg:col-span-1">
           <FileDetails file={selectedFile} repo={selectedRepo} />
