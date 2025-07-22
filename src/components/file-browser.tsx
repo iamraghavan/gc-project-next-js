@@ -41,6 +41,7 @@ export type FileItem = {
   size: string
   lastModified: string
   tags: string[]
+  path: string
 }
 
 const fileIcons = {

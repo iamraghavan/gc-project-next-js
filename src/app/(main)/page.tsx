@@ -18,23 +18,15 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
-
-
-const mockFiles: FileItem[] = [
-  { id: "1", name: "Project Documents", type: "folder", size: "3.2 GB", lastModified: "2 hours ago", tags: [] },
-  { id: "2", name: "logo-design.png", type: "image", size: "1.2 MB", lastModified: "5 hours ago", tags: ["design", "logo"] },
-  { id: "3", name: "roadmap.pdf", type: "pdf", size: "5.6 MB", lastModified: "1 day ago", tags: ["planning", "docs"] },
-  { id: "4", name: "README.md", type: "markdown", size: "12 KB", lastModified: "3 days ago", tags: ["docs"] },
-  { id: "5", name: "website-backup.zip", type: "archive", size: "256 MB", lastModified: "1 week ago", tags: ["backup"] },
-  { id: "6", name: "notes.txt", type: "file", size: "5 KB", lastModified: "2 weeks ago", tags: [] },
-  { id: "7", name: "landing-page.jpg", type: "image", size: "4.8 MB", lastModified: "1 month ago", tags: ["website", "design"] },
-]
+import { type Repository } from "@/services/github"
 
 
 export default function FilesPage() {
-  const [selectedFile, setSelectedFile] = React.useState<FileItem | null>(mockFiles[1])
+  const [selectedFile, setSelectedFile] = React.useState<FileItem | null>(null)
   const [isUploading, setIsUploading] = React.useState(false);
   const [uploadProgress, setUploadProgress] = React.useState(0);
+  const [files, setFiles] = React.useState<FileItem[]>([])
+  const [selectedRepo, setSelectedRepo] = React.useState<Repository | null>(null)
 
   const handleUpload = () => {
     setIsUploading(true);
@@ -56,7 +48,7 @@ export default function FilesPage() {
     <main className="flex-1 flex flex-col p-4 gap-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <RepoSwitcher />
+          <RepoSwitcher onRepoChange={setSelectedRepo} />
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem><BreadcrumbLink href="/">root</BreadcrumbLink></BreadcrumbItem>
@@ -103,10 +95,10 @@ export default function FilesPage() {
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1">
         <div className="lg:col-span-2">
-          <FileBrowser files={mockFiles} selectedFile={selectedFile} onFileSelect={setSelectedFile} />
+          <FileBrowser files={files} selectedFile={selectedFile} onFileSelect={setSelectedFile} />
         </div>
         <div className="lg:col-span-1">
-          <FileDetails file={selectedFile} />
+          <FileDetails file={selectedFile} repo={selectedRepo} />
         </div>
       </div>
     </main>

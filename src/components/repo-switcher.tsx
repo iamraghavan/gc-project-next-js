@@ -36,9 +36,11 @@ import { createRepository, getRepositories, type Repository } from "@/services/g
 
 type PopoverTriggerProps = React.ComponentPropsWithoutRef<typeof PopoverTrigger>
 
-interface RepoSwitcherProps extends PopoverTriggerProps {}
+interface RepoSwitcherProps extends PopoverTriggerProps {
+    onRepoChange: (repo: Repository | null) => void;
+}
 
-export default function RepoSwitcher({ className }: RepoSwitcherProps) {
+export default function RepoSwitcher({ className, onRepoChange }: RepoSwitcherProps) {
   const [open, setOpen] = React.useState(false)
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false)
   const [selectedRepo, setSelectedRepo] = React.useState<Repository | null>(null)
@@ -50,10 +52,12 @@ export default function RepoSwitcher({ className }: RepoSwitcherProps) {
     getRepositories().then(repos => {
       setRepositories(repos)
       if (repos.length > 0) {
-        setSelectedRepo(repos.find(r => r.name === 'gitdrive-data') || repos[0])
+        const defaultRepo = repos.find(r => r.name === 'gitdrive-data') || repos[0];
+        setSelectedRepo(defaultRepo);
+        onRepoChange(defaultRepo);
       }
     })
-  }, [])
+  }, [onRepoChange])
   
   const handleCreateRepository = async () => {
     if (!newRepoName) {
@@ -69,6 +73,7 @@ export default function RepoSwitcher({ className }: RepoSwitcherProps) {
       const newRepo = await createRepository(newRepoName)
       setRepositories(prev => [...prev, newRepo])
       setSelectedRepo(newRepo)
+      onRepoChange(newRepo)
       setCreateDialogOpen(false)
       setNewRepoName("")
       toast({
@@ -82,6 +87,12 @@ export default function RepoSwitcher({ className }: RepoSwitcherProps) {
         variant: "destructive",
       })
     }
+  }
+
+  const handleRepoSelect = (repo: Repository) => {
+    setSelectedRepo(repo);
+    onRepoChange(repo);
+    setOpen(false);
   }
 
   return (
@@ -116,10 +127,7 @@ export default function RepoSwitcher({ className }: RepoSwitcherProps) {
                   <CommandItem
                     key={repo.id}
                     value={repo.name}
-                    onSelect={() => {
-                      setSelectedRepo(repo)
-                      setOpen(false)
-                    }}
+                    onSelect={() => handleRepoSelect(repo)}
                   >
                     <GitDriveLogo className="mr-2 h-5 w-5" />
                     {repo.name}

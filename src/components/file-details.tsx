@@ -24,6 +24,7 @@ import {
 import { Input } from "./ui/input"
 import { Textarea } from "./ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar"
+import { Repository } from "@/services/github"
 
 const fileTypePlaceholders: Record<FileItem["type"], string> = {
   image: "https://placehold.co/600x400.png",
@@ -65,7 +66,7 @@ function FilePreview({ file }: { file: FileItem }) {
 }
 
 
-export function FileDetails({ file }: { file: FileItem | null }) {
+export function FileDetails({ file, repo }: { file: FileItem | null, repo: Repository | null }) {
   if (!file) {
     return (
       <Card className="h-full flex items-center justify-center">
@@ -76,7 +77,7 @@ export function FileDetails({ file }: { file: FileItem | null }) {
     )
   }
   
-  const rawUrl = `https://raw.githubusercontent.com/user/repo/main/${file.name}`
+  const rawUrl = repo ? `https://raw.githubusercontent.com/${repo.full_name}/main/${file.path}` : ''
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(rawUrl)}`;
 
 
