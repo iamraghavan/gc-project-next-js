@@ -1,12 +1,56 @@
+"use client";
+
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { GitDriveLogo } from "@/components/icons"
 import { Github } from "lucide-react"
+import { 
+  signInWithEmailAndPassword, 
+  GithubAuthProvider, 
+  signInWithPopup 
+} from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import { useToast } from "@/hooks/use-toast"
+
 
 export default function LoginPage() {
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const router = useRouter();
+  const { toast } = useToast();
+
+  const handleEmailPasswordLogin = async () => {
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      router.push("/drive/files");
+    } catch (error: any) {
+      toast({
+        title: "Login Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleGitHubLogin = async () => {
+    const provider = new GithubAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+      router.push("/drive/files");
+    } catch (error: any) {
+       toast({
+        title: "Login Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
       <Card className="mx-auto max-w-sm">
@@ -26,20 +70,26 @@ export default function LoginPage() {
                 type="email"
                 placeholder="m@example.com"
                 required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
               />
             </div>
             <div className="grid gap-2">
               <div className="flex items-center">
                 <Label htmlFor="password">Password</Label>
               </div>
-              <Input id="password" type="password" required />
+              <Input 
+                id="password" 
+                type="password" 
+                required 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
             </div>
-            <Link href="/drive/files" className="w-full">
-              <Button className="w-full">
-                Login
-              </Button>
-            </Link>
-            <Button variant="outline" className="w-full">
+            <Button className="w-full" onClick={handleEmailPasswordLogin}>
+              Login
+            </Button>
+            <Button variant="outline" className="w-full" onClick={handleGitHubLogin}>
               <Github className="mr-2 h-4 w-4" />
               Login with GitHub
             </Button>
