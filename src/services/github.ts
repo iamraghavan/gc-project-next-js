@@ -46,7 +46,12 @@ async function githubApi(endpoint: string, options: RequestInit = {}) {
 
   // Handle cases where response might be empty
   const text = await response.text();
-  return text ? JSON.parse(text) : null;
+  try {
+    return text ? JSON.parse(text) : null;
+  } catch(e) {
+    // If parsing fails, it might be a non-JSON response (e.g. from a delete)
+    return null;
+  }
 }
 
 export async function getRepositories(): Promise<Repository[]> {
@@ -98,6 +103,30 @@ export async function getRepoContents(params: { repoFullName: string; path?: str
         return [];
     }
 }
+
+export async function createFolder(repoFullName: string, path: string): Promise<void> {
+    const filePath = `${path}/.gitkeep`;
+    await githubApi(`/repos/${repoFullName}/contents/${filePath}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            message: `Create folder: ${path}`,
+            content: '' // empty content for .gitkeep
+        })
+    });
+}
+
+export async function uploadFile(repoFullName: string, path: string, content: string): Promise<void> {
+    await githubApi(`/repos/${repoFullName}/contents/${path}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            message: `Upload file: ${path}`,
+            content: content,
+        })
+    });
+}
+
 
 export async function saveFileMetadata(repoFullName: string, filePath: string, metadata: { expiration: string | null }) {
     try {
