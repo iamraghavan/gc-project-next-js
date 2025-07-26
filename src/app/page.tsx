@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link"
@@ -21,10 +22,30 @@ import { useToast } from "@/hooks/use-toast"
 export default function LoginPage() {
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
+  const [num1, setNum1] = React.useState(0);
+  const [num2, setNum2] = React.useState(0);
+  const [captchaAnswer, setCaptchaAnswer] = React.useState("");
+
   const router = useRouter();
   const { toast } = useToast();
 
+  React.useEffect(() => {
+    // Generate numbers on the client side to avoid hydration mismatch
+    setNum1(Math.floor(Math.random() * 10) + 1);
+    setNum2(Math.floor(Math.random() * 10) + 1);
+  }, []);
+
   const handleEmailPasswordLogin = async () => {
+    // Human verification check
+    if (parseInt(captchaAnswer, 10) !== num1 + num2) {
+      toast({
+        title: "Login Failed",
+        description: "Please solve the human verification check correctly.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       await signInWithEmailAndPassword(auth, email, password);
       router.push("/drive/files");
@@ -34,6 +55,12 @@ export default function LoginPage() {
         description: error.message,
         variant: "destructive",
       });
+    }
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      handleEmailPasswordLogin();
     }
   };
 
@@ -84,6 +111,18 @@ export default function LoginPage() {
                 required 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={handleKeyDown}
+              />
+            </div>
+            <div className="grid gap-2">
+               <Label htmlFor="captcha">Human Check: What is {num1} + {num2}?</Label>
+               <Input
+                id="captcha"
+                type="text"
+                required
+                value={captchaAnswer}
+                onChange={(e) => setCaptchaAnswer(e.target.value)}
+                onKeyDown={handleKeyDown}
               />
             </div>
             <Button className="w-full" onClick={handleEmailPasswordLogin}>
