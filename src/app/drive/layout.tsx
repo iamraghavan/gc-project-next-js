@@ -19,6 +19,10 @@ import { GitDriveLogo } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import { LayoutDashboard, File, History, Github, Settings, LogOut } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { auth } from "@/lib/firebase"
+import { signOut } from "firebase/auth"
+import { useRouter } from "next/navigation"
+import { useToast } from "@/hooks/use-toast"
 
 export default function MainLayout({
   children,
@@ -26,7 +30,28 @@ export default function MainLayout({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
+  const router = useRouter()
+  const { toast } = useToast()
+  const user = auth.currentUser
+
   const isActive = (path: string) => pathname === path
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      router.push("/");
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out.",
+      });
+    } catch (error) {
+      toast({
+        title: "Logout Failed",
+        description: (error as Error).message,
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <SidebarProvider>
@@ -74,7 +99,7 @@ export default function MainLayout({
               </SidebarMenuButton>
             </SidebarMenuItem>
              <SidebarMenuItem>
-              <SidebarMenuButton>
+              <SidebarMenuButton onClick={handleLogout}>
                 <LogOut />
                 Logout
               </SidebarMenuButton>
@@ -82,12 +107,12 @@ export default function MainLayout({
           </SidebarMenu>
           <div className="flex items-center gap-2 p-2 border-t mt-2">
              <Avatar>
-                <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
-                <AvatarFallback>CN</AvatarFallback>
+                <AvatarImage src={user?.photoURL || undefined} alt="User avatar" />
+                <AvatarFallback>{user?.displayName?.charAt(0) || user?.email?.charAt(0) || 'U'}</AvatarFallback>
             </Avatar>
             <div className="flex flex-col">
-                <span className="font-semibold text-sm">User</span>
-                <span className="text-xs text-sidebar-foreground/70">user@example.com</span>
+                <span className="font-semibold text-sm">{user?.displayName || 'User'}</span>
+                <span className="text-xs text-sidebar-foreground/70">{user?.email}</span>
             </div>
           </div>
         </SidebarFooter>
@@ -97,7 +122,7 @@ export default function MainLayout({
             <SidebarTrigger />
             <Button variant="outline">
                 <Github className="mr-2 h-4 w-4"/>
-                Login with GitHub
+                {user ? 'Connected' : 'Login with GitHub'}
             </Button>
         </header>
         {children}

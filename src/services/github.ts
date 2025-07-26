@@ -12,6 +12,7 @@ export interface Repository {
     private: boolean;
     html_url: string;
     description: string | null;
+    size: number; // in KB
 }
 
 export interface FileItem {
@@ -61,6 +62,15 @@ export async function getRepositories(): Promise<Repository[]> {
     } catch (error) {
         console.error("Error fetching repositories:", error);
         return [];
+    }
+}
+
+export async function getRepoDetails(repoFullName: string): Promise<Repository> {
+    try {
+        return await githubApi(`/repos/${repoFullName}`);
+    } catch (error) {
+        console.error("Error fetching repository details:", error);
+        throw error;
     }
 }
 
@@ -157,10 +167,6 @@ export async function moveOrRenameItem(
   oldPath: string,
   newPath: string
 ): Promise<void> {
-  const { GITHUB_TOKEN: token } = process.env;
-
-  const repoOwner = repoFullName.split('/')[0];
-  const repoName = repoFullName.split('/')[1];
   
   // 1. Get the current branch
   const repo = await githubApi(`/repos/${repoFullName}`);
