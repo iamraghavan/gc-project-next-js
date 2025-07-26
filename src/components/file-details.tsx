@@ -43,6 +43,14 @@ function FilePreview({ file, repo }: { file: FileItem, repo: Repository | null }
 
 export function FileDetails({ file, repo }: { file: FileItem | null, repo: Repository | null }) {
   const { toast } = useToast();
+  const [cloudflareBaseUrl, setCloudflareBaseUrl] = React.useState('');
+
+  React.useEffect(() => {
+    // This will run only on the client side, after hydration, to avoid mismatches.
+    if (typeof window !== 'undefined') {
+      setCloudflareBaseUrl(window.location.origin);
+    }
+  }, []);
   
   if (!file || !repo) {
     return (
@@ -55,13 +63,14 @@ export function FileDetails({ file, repo }: { file: FileItem | null, repo: Repos
   }
   
   const rawUrl = `https://raw.githubusercontent.com/${repo.full_name}/main/${file.path}`;
+  const cloudflareUrl = cloudflareBaseUrl ? `${cloudflareBaseUrl}/${file.path}` : '';
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(rawUrl)}`;
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(rawUrl);
+  const handleCopy = (url: string, message: string) => {
+    navigator.clipboard.writeText(url);
     toast({
       title: "Copied to clipboard!",
-      description: "The public CDN link has been copied.",
+      description: message,
     })
   }
   
@@ -98,10 +107,10 @@ export function FileDetails({ file, repo }: { file: FileItem | null, repo: Repos
       <CardContent>
         <div className="space-y-6">
           <div>
-            <h3 className="text-sm font-medium text-muted-foreground mb-2">Public CDN Link</h3>
+            <h3 className="text-sm font-medium text-muted-foreground mb-2">GitHub CDN Link</h3>
             <div className="flex items-center gap-2">
               <Input readOnly value={rawUrl} className="bg-secondary"/>
-              <Button variant="outline" size="icon" onClick={handleCopy}><Copy className="h-4 w-4" /></Button>
+              <Button variant="outline" size="icon" onClick={() => handleCopy(rawUrl, "The GitHub CDN link has been copied.")}><Copy className="h-4 w-4" /></Button>
               <Dialog>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="icon"><QrCode className="h-4 w-4" /></Button>
@@ -117,6 +126,18 @@ export function FileDetails({ file, repo }: { file: FileItem | null, repo: Repos
               </Dialog>
             </div>
           </div>
+
+          <div>
+            <h3 className="text-sm font-medium text-muted-foreground mb-2">Cloudflare Pages CDN Link</h3>
+            <div className="flex items-center gap-2">
+              <Input readOnly value={cloudflareUrl} placeholder="Loading..." className="bg-secondary"/>
+              <Button variant="outline" size="icon" onClick={() => handleCopy(cloudflareUrl, "The Cloudflare Pages CDN link has been copied.")} disabled={!cloudflareUrl}>
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">This link will be available after your next Cloudflare Pages deployment.</p>
+          </div>
+
           <div>
             <h3 className="text-sm font-medium text-muted-foreground mb-2">Tags</h3>
             <div className="flex flex-wrap gap-2">
