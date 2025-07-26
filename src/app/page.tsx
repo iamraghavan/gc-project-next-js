@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { GitDriveLogo } from "@/components/icons"
-import { Github, RefreshCw } from "lucide-react"
+import { Github } from "lucide-react"
 import { 
   signInWithEmailAndPassword, 
   GithubAuthProvider, 
@@ -17,75 +17,31 @@ import {
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast"
-import { Skeleton } from "@/components/ui/skeleton";
-
 
 export default function LoginPage() {
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
-  const [captchaInput, setCaptchaInput] = React.useState("");
-  const [captchaSvg, setCaptchaSvg] = React.useState<string | null>(null);
-  const [isLoadingCaptcha, setIsLoadingCaptcha] = React.useState(true);
-  
   const router = useRouter();
   const { toast } = useToast();
 
-  const fetchCaptcha = React.useCallback(async () => {
-    setIsLoadingCaptcha(true);
-    try {
-      const response = await fetch('/api/captcha');
-      const data = await response.json();
-      setCaptchaSvg(data.svg);
-    } catch (error) {
-       toast({
-        title: "Error",
-        description: "Could not load captcha. Please refresh.",
+  const handleLogin = async () => {
+    if (!email || !password) {
+      toast({
+        title: "Login Failed",
+        description: "Please enter both email and password.",
         variant: "destructive",
       });
-      setCaptchaSvg(null);
-    } finally {
-        setIsLoadingCaptcha(false);
+      return;
     }
-  }, [toast]);
-
-  React.useEffect(() => {
-    fetchCaptcha();
-  }, [fetchCaptcha]);
-
-  const handleLogin = async () => {
     try {
-      // 1. Verify captcha first
-      const captchaResponse = await fetch('/api/captcha/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ captcha: captchaInput })
-      });
-
-      if (!captchaResponse.ok) {
-          const error = await captchaResponse.json();
-          toast({
-            title: "Login Failed",
-            description: error.message || "Invalid captcha.",
-            variant: "destructive",
-          });
-          fetchCaptcha(); // get a new captcha
-          return;
-      }
-      
-      // 2. If captcha is successful, proceed with Firebase login
       await signInWithEmailAndPassword(auth, email, password);
-      
       router.push("/drive/files");
-
     } catch (error: any) {
-       // This will now correctly catch Firebase errors
-      toast({
+       toast({
         title: "Login Failed",
         description: error.message,
         variant: "destructive",
       });
-       // Fetch a new captcha on any login failure
-      fetchCaptcha();
     }
   };
   
@@ -102,7 +58,6 @@ export default function LoginPage() {
       });
     }
   };
-
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {
@@ -144,29 +99,6 @@ export default function LoginPage() {
                 required 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={handleKeyDown}
-              />
-            </div>
-            <div className="grid gap-2">
-                <Label htmlFor="captcha">Human Check</Label>
-                <div className="flex items-center gap-2">
-                    {isLoadingCaptcha ? (
-                        <Skeleton className="h-10 w-36 rounded-md" />
-                    ) : (
-                       captchaSvg && <div className="p-2 bg-white rounded-md" dangerouslySetInnerHTML={{ __html: captchaSvg }} />
-                    )}
-                    <Button variant="outline" size="icon" onClick={fetchCaptcha} disabled={isLoadingCaptcha}>
-                        <RefreshCw className="h-4 w-4" />
-                    </Button>
-                </div>
-
-               <Input
-                id="captcha"
-                placeholder="Enter characters"
-                type="text"
-                required
-                value={captchaInput}
-                onChange={(e) => setCaptchaInput(e.target.value)}
                 onKeyDown={handleKeyDown}
               />
             </div>
