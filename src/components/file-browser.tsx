@@ -47,7 +47,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "./ui/input"
 import { useToast } from "@/hooks/use-toast"
-import { Repository, deleteItem, moveOrRenameItem } from "@/services/github"
+import { Repository, deleteItem, moveOrRenameItem, duplicateItem, toggleFavorite, getFileMetadata } from "@/services/github"
 
 export type FileItem = {
   id: string
@@ -58,6 +58,7 @@ export type FileItem = {
   tags: string[]
   path: string
   sha: string;
+  isFavorite?: boolean;
 }
 
 const fileIcons = {
@@ -122,7 +123,7 @@ function ActionDialog({
             <Button variant="outline">Cancel</Button>
           </DialogClose>
           <Button onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting && <Loader className="mr-2 animate-spin" />}
+            {isSubmitting && <Loader className="mr-2 h-4 w-4 animate-spin" />}
             {actionLabel}
           </Button>
         </DialogFooter>
@@ -161,13 +162,15 @@ export function FileBrowser({
   const handleAction = (
     e: React.MouseEvent,
     file: FileItem,
-    action: "rename" | "move" | "delete"
+    action: "rename" | "move" | "delete" | "duplicate" | "favorite"
   ) => {
     e.stopPropagation()
     setActionFile(file)
     if (action === "rename") setIsRenameOpen(true)
     if (action === "move") setIsMoveOpen(true)
     if (action === "delete") setIsDeleteOpen(true)
+    if (action === "duplicate") handleDuplicate(file)
+    if (action === "favorite") handleToggleFavorite(file)
   }
 
   const handleRename = async (newName: string) => {
@@ -198,14 +201,36 @@ export function FileBrowser({
     try {
       await deleteItem(repo.full_name, actionFile.path, actionFile.sha, actionFile.type === 'folder')
       toast({ title: "Deleted successfully" })
-      onRefresh()
       if (selectedFile?.id === actionFile.id) {
         onFileSelect(null)
       }
+      onRefresh()
     } catch (error) {
       toast({ title: "Delete failed", description: (error as Error).message, variant: "destructive" })
     }
     setIsDeleteOpen(false)
+  }
+
+  const handleDuplicate = async (file: FileItem) => {
+      if (!repo) return;
+      try {
+          await duplicateItem(repo.full_name, file.path);
+          toast({ title: "Duplicated successfully" });
+          onRefresh();
+      } catch (error) {
+          toast({ title: "Duplicate failed", description: (error as Error).message, variant: "destructive" });
+      }
+  }
+
+  const handleToggleFavorite = async (file: FileItem) => {
+      if (!repo) return;
+      try {
+          await toggleFavorite(repo.full_name, file.path);
+          toast({ title: file.isFavorite ? "Removed from favorites" : "Added to favorites" });
+          onRefresh();
+      } catch (error) {
+          toast({ title: "Failed to update favorites", description: (error as Error).message, variant: "destructive" });
+      }
   }
 
   return (
@@ -270,6 +295,7 @@ export function FileBrowser({
                     <div className="flex items-center gap-2">
                       {fileIcons[file.type as keyof typeof fileIcons] || fileIcons["file"]}
                       <span>{file.name}</span>
+                       {file.isFavorite && <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />}
                     </div>
                   </TableCell>
                   <TableCell>{file.size}</TableCell>
@@ -295,7 +321,7 @@ export function FileBrowser({
                           <Edit className="mr-2 h-4 w-4" />
                           Rename
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onSelect={(e) => handleAction(e, file, "duplicate")}>
                           <Copy className="mr-2 h-4 w-4" />
                           Duplicate
                         </DropdownMenuItem>
@@ -303,9 +329,9 @@ export function FileBrowser({
                           <Move className="mr-2 h-4 w-4" />
                           Move
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onSelect={(e) => handleAction(e, file, "favorite")}>
                           <Star className="mr-2 h-4 w-4" />
-                          Add to favorites
+                          {file.isFavorite ? "Remove from favorites" : "Add to favorites"}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
@@ -340,7 +366,7 @@ export function FileBrowser({
             isOpen={isMoveOpen}
             onOpenChange={setIsMoveOpen}
             title={`Move ${actionFile.name}`}
-            description="Enter the new path for the item."
+            description="Enter the new path for the item (e.g., 'documents/new-folder'). Paths are relative to the repository root."
             inputLabel="New Path"
             initialValue={actionFile.path}
             onAction={handleMove}

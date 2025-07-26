@@ -19,7 +19,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
-import { type Repository, getRepoContents, createFolder, uploadFile } from "@/services/github"
+import { type Repository, getRepoContents, createFolder, uploadFile, getFileMetadata } from "@/services/github"
 import { formatDistanceToNow } from "date-fns"
 import { useToast } from "@/hooks/use-toast"
 
@@ -42,12 +42,15 @@ export default function FilesPage() {
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  const fetchFiles = React.useCallback(() => {
+  const fetchFiles = React.useCallback(async () => {
      if (selectedRepo) {
       setIsLoading(true);
-      getRepoContents({ repoFullName: selectedRepo.full_name, path: path.join('/') })
-        .then(contents => {
-            const mappedFiles: FileItem[] = contents.map((item: any) => ({
+      try {
+        const contents = await getRepoContents({ repoFullName: selectedRepo.full_name, path: path.join('/') });
+        
+        const mappedFiles: FileItem[] = await Promise.all(contents.map(async (item: any) => {
+            const metadata = await getFileMetadata(selectedRepo.full_name, item.path);
+            return {
                 id: item.sha,
                 name: item.name,
                 type: item.type === 'dir' ? 'folder' : 'file',
@@ -56,12 +59,20 @@ export default function FilesPage() {
                 tags: [],
                 path: item.path,
                 sha: item.sha,
-            }));
-            setFiles(mappedFiles);
-        })
-        .finally(() => setIsLoading(false));
+                isFavorite: metadata?.favorite || false,
+            };
+        }));
+        setFiles(mappedFiles);
+
+      } catch (error) {
+        console.error(error);
+        toast({ title: "Error fetching files", description: (error as Error).message, variant: "destructive" });
+        setFiles([]);
+      } finally {
+        setIsLoading(false);
+      }
     }
-  }, [selectedRepo, path]);
+  }, [selectedRepo, path, toast]);
 
 
   React.useEffect(() => {

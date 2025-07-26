@@ -13,6 +13,7 @@ export interface Repository {
     html_url: string;
     description: string | null;
     size: number; // in KB
+    default_branch: string;
 }
 
 export interface FileItem {
@@ -23,6 +24,7 @@ export interface FileItem {
     type: 'file' | 'dir';
     html_url: string;
     download_url: string | null;
+    content?: string; // base64 encoded
 }
 
 
@@ -117,6 +119,15 @@ export async function getRepoContents(params: { repoFullName: string; path?: str
     }
 }
 
+export async function getFileContent(repoFullName: string, path: string): Promise<FileItem> {
+    try {
+        return await githubApi(`/repos/${repoFullName}/contents/${path}`);
+    } catch (error) {
+        console.error(`Error fetching file content for ${path}:`, error);
+        throw error;
+    }
+}
+
 export async function createFolder(repoFullName: string, path: string): Promise<void> {
     const filePath = `${path}/.gitkeep`;
     await githubApi(`/repos/${repoFullName}/contents/${filePath}`, {
@@ -144,17 +155,24 @@ export async function uploadFile(repoFullName: string, path: string, content: st
 
 export async function deleteItem(repoFullName: string, path: string, sha: string, isFolder: boolean): Promise<void> {
     if (isFolder) {
+        // GitHub API doesn't support direct folder deletion.
+        // It requires deleting each file individually.
+        // A more robust solution for large folders would be to use the Git Trees API,
+        // but for simplicity here we delete one by one.
         const contents = await getRepoContents({ repoFullName, path });
         for (const item of contents) {
             await deleteItem(repoFullName, item.path, item.sha, item.type === 'dir');
         }
+        // After deleting all contents, the folder implicitly no longer exists.
+        await logActivity('delete', { repoFullName, path });
+        return;
     }
 
     await githubApi(`/repos/${repoFullName}/contents/${path}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            message: `Delete ${isFolder ? 'folder' : 'file'}: ${path}`,
+            message: `Delete file: ${path}`,
             sha,
         }),
     });
@@ -167,78 +185,70 @@ export async function moveOrRenameItem(
   oldPath: string,
   newPath: string
 ): Promise<void> {
+  // This approach is complex with the REST API. It involves creating a new blob, tree, and commit.
+  // This is a simplified version that reads the content and creates a new file, then deletes the old one.
+  // This is not atomic and can be slow for large files.
   
-  // 1. Get the current branch
-  const repo = await githubApi(`/repos/${repoFullName}`);
-  const branch = repo.default_branch;
+  const fileData = await getFileContent(repoFullName, oldPath);
 
-  // 2. Get the last commit SHA of the branch
-  const refData = await githubApi(`/repos/${repoFullName}/git/ref/heads/${branch}`);
-  const lastCommitSha = refData.object.sha;
-  
-  // 3. Get the tree of the last commit
-  const commitData = await githubApi(`/repos/${repoFullName}/git/commits/${lastCommitSha}`);
-  const treeSha = commitData.tree.sha;
+  if (!fileData.content) {
+    throw new Error("Could not retrieve file content to move.");
+  }
 
-  // 4. Create a new tree for the move/rename
-  const { tree } = await githubApi(`/repos/${repoFullName}/git/trees/${treeSha}?recursive=1`);
-  
-  const newTree = tree.map((item: any) => {
-    if (item.path === oldPath) {
-      return { ...item, path: newPath };
-    }
-    if (item.path.startsWith(`${oldPath}/`)) {
-       return { ...item, path: item.path.replace(oldPath, newPath) };
-    }
-    return item;
-  }).map(({ url, sha, ...rest }: any) => ({ ...rest, sha: sha as string | null }));
+  // Create the new file
+  await uploadFile(repoFullName, newPath, fileData.content);
 
+  // Delete the old file
+  await deleteItem(repoFullName, oldPath, fileData.sha, false);
 
-  const newTreeData = await githubApi(`/repos/${repoFullName}/git/trees`, {
-      method: 'POST',
-      body: JSON.stringify({
-          base_tree: treeSha,
-          tree: newTree
-      })
-  });
-  
-  // 5. Create a new commit with the new tree
-  const newCommit = await githubApi(`/repos/${repoFullName}/git/commits`, {
-      method: 'POST',
-      body: JSON.stringify({
-          message: `Move/rename ${oldPath} to ${newPath}`,
-          tree: newTreeData.sha,
-          parents: [lastCommitSha]
-      })
-  });
-
-  // 6. Update the branch reference to point to the new commit
-  await githubApi(`/repos/${repoFullName}/git/refs/heads/${branch}`, {
-      method: 'PATCH',
-      body: JSON.stringify({
-          sha: newCommit.sha
-      })
-  });
 
   await logActivity('move', { repoFullName, path: newPath, oldPath: oldPath });
 }
 
+export async function duplicateItem(repoFullName: string, path: string): Promise<void> {
+    const fileData = await getFileContent(repoFullName, path);
+    const pathParts = path.split('/');
+    const originalName = pathParts.pop()!;
+    const directory = pathParts.join('/');
 
-export async function saveFileMetadata(repoFullName: string, filePath: string, metadata: { expiration: string | null }) {
+    const nameParts = originalName.split('.');
+    const ext = nameParts.length > 1 ? `.${nameParts.pop()}` : '';
+    const baseName = nameParts.join('.');
+    
+    const newName = `${baseName} (copy)${ext}`;
+    const newPath = directory ? `${directory}/${newName}` : newName;
+    
+    if (!fileData.content) {
+        throw new Error("Cannot duplicate file without content.");
+    }
+    
+    await uploadFile(repoFullName, newPath, fileData.content);
+    await logActivity('duplicate', { repoFullName, path: newPath, originalPath: path });
+}
+
+
+export async function saveFileMetadata(repoFullName: string, filePath: string, metadata: any) {
     try {
-        const docId = `${repoFullName}:${filePath}`.replace(/\//g, '_');
+        const docId = `${repoFullName}:${filePath}`.replace(/[\/.]/g, '_');
         const docRef = doc(db, "fileMetadata", docId);
         await setDoc(docRef, metadata, { merge: true });
-        await logActivity('set_expiration', { repoFullName, path: filePath, expiration: metadata.expiration });
+        
+        if (metadata.expiration !== undefined) {
+             await logActivity('set_expiration', { repoFullName, path: filePath, expiration: metadata.expiration });
+        }
+        if (metadata.favorite !== undefined) {
+            await logActivity('favorite', { repoFullName, path: filePath, isFavorite: metadata.favorite });
+        }
+
     } catch (error) {
         console.error("Error saving file metadata:", error);
         throw error;
     }
 }
 
-export async function getFileMetadata(repoFullName: string, filePath: string) {
+export async function getFileMetadata(repoFullName: string, filePath: string): Promise<{ expiration?: string | null; favorite?: boolean } | null> {
     try {
-        const docId = `${repoFullName}:${filePath}`.replace(/\//g, '_');
+        const docId = `${repoFullName}:${filePath}`.replace(/[\/.]/g, '_');
         const docRef = doc(db, "fileMetadata", docId);
         const docSnap = await getDoc(docRef);
         return docSnap.exists() ? docSnap.data() : null;
@@ -246,4 +256,9 @@ export async function getFileMetadata(repoFullName: string, filePath: string) {
         console.error("Error getting file metadata:", error);
         return null;
     }
+}
+
+export async function toggleFavorite(repoFullName: string, filePath: string): Promise<void> {
+    const metadata = await getFileMetadata(repoFullName, filePath);
+    await saveFileMetadata(repoFullName, filePath, { favorite: !metadata?.favorite });
 }
