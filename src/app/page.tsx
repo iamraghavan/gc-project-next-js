@@ -54,11 +54,7 @@ export default function LoginPage() {
 
   const handleLogin = async () => {
     try {
-      // We pass the captcha to the sign in function, it will be validated on the backend
-      const credential = await signInWithEmailAndPassword(auth, email, password);
-      
-      // Manually verify captcha before proceeding, as Firebase Auth doesn't have a direct hook.
-      // In a real app, this would be part of a server-side validation flow.
+      // 1. Verify captcha first
       const captchaResponse = await fetch('/api/captcha/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -76,13 +72,20 @@ export default function LoginPage() {
           return;
       }
       
+      // 2. If captcha is successful, proceed with Firebase login
+      await signInWithEmailAndPassword(auth, email, password);
+      
       router.push("/drive/files");
+
     } catch (error: any) {
+       // This will now correctly catch Firebase errors
       toast({
         title: "Login Failed",
         description: error.message,
         variant: "destructive",
       });
+       // Fetch a new captcha on any login failure
+      fetchCaptcha();
     }
   };
   
@@ -128,6 +131,7 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={handleKeyDown}
               />
             </div>
             <div className="grid gap-2">
