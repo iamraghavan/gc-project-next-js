@@ -35,9 +35,10 @@ export default function MainLayout({
   const router = useRouter()
   const { toast } = useToast()
   const user = auth.currentUser
-  const [time, setTime] = React.useState(new Date());
+  const [time, setTime] = React.useState<Date | null>(null);
 
   React.useEffect(() => {
+    setTime(new Date()); // Set initial time on client
     const timer = setInterval(() => {
       setTime(new Date());
     }, 1000);
@@ -132,10 +133,17 @@ export default function MainLayout({
         <header className="flex items-center justify-between p-4 border-b">
             <SidebarTrigger />
             <div className="flex items-center gap-4">
-                <div className="text-sm text-right">
-                    <div className="font-mono">{format(time, 'HH:mm:ss')}</div>
-                    <div className="text-xs text-muted-foreground">{format(time, 'PPP EEE')}</div>
-                </div>
+                {time ? (
+                    <div className="text-sm text-right">
+                        <div className="font-mono">{format(time, 'HH:mm:ss')}</div>
+                        <div className="text-xs text-muted-foreground">{format(time, 'PPP EEE')}</div>
+                    </div>
+                ) : (
+                    <div className="text-sm text-right">
+                        <div className="font-mono">--:--:--</div>
+                        <div className="text-xs text-muted-foreground">Loading...</div>
+                    </div>
+                )}
                 <Avatar>
                     <AvatarImage src={user?.photoURL || undefined} alt="User avatar" data-ai-hint="user avatar" />
                     <AvatarFallback>{user?.displayName?.charAt(0) || user?.email?.charAt(0) || 'U'}</AvatarFallback>
