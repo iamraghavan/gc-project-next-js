@@ -39,7 +39,7 @@ import { getDashboardStats, type DashboardStats } from '@/services/dashboard'
 import { getRepositories, getRepoDetails, type Repository } from '@/services/github'
 import RepoSwitcher from '@/components/repo-switcher'
 import { Skeleton } from '@/components/ui/skeleton'
-import { summarizeDashboard } from '@/ai/flows/summarize-dashboard-flow'
+import { handleGenerateSummary } from './actions'
 import Markdown from 'react-markdown'
 import { Button } from '@/components/ui/button'
 
@@ -96,28 +96,29 @@ export default function DashboardPage() {
     }
   }, [selectedRepo, repositories, isLoading])
   
-  const handleGenerateSummary = React.useCallback(async () => {
+  const onGenerateSummary = React.useCallback(async () => {
     if (!stats || !repoDetails || repositories.length === 0) return;
     setIsSummaryLoading(true);
     setSummary("");
-    try {
-        const result = await summarizeDashboard({
-            stats: {
-                activeUsers: stats.activeUsers,
-                fileActivities24h: stats.fileActivities24h,
-                totalStorageUsed: formatBytes(repoDetails.size),
-                totalRepositories: repositories.length,
-                monthlyUploads: stats.monthlyUploads,
-                userActivity: stats.userActivity.map(d => ({ month: d.month, actions: d.value })),
-            }
-        });
+    
+    const result = await handleGenerateSummary({
+        stats: {
+            activeUsers: stats.activeUsers,
+            fileActivities24h: stats.fileActivities24h,
+            totalStorageUsed: formatBytes(repoDetails.size),
+            totalRepositories: repositories.length,
+            monthlyUploads: stats.monthlyUploads,
+            userActivity: stats.userActivity.map(d => ({ month: d.month, actions: d.value })),
+        }
+    });
+
+    if (result.error || !result.summary) {
+        setSummary(result.error || "Sorry, I was unable to generate a summary at this time.");
+    } else {
         setSummary(result.summary);
-    } catch(e) {
-        console.error("Failed to generate summary", e);
-        setSummary("Sorry, I was unable to generate a summary at this time.");
-    } finally {
-        setIsSummaryLoading(false);
     }
+
+    setIsSummaryLoading(false);
   }, [stats, repoDetails, repositories]);
 
   return (
@@ -196,7 +197,7 @@ export default function DashboardPage() {
                 <div className="text-center text-muted-foreground p-8 flex flex-col items-center gap-4">
                     <BrainCircuit className="h-10 w-10" />
                     <p>Click the button to generate an AI-powered summary of your dashboard!</p>
-                    <Button onClick={handleGenerateSummary} disabled={isLoading}>
+                    <Button onClick={onGenerateSummary} disabled={isLoading}>
                        <BrainCircuit className="mr-2 h-4 w-4" />
                        Generate Summary
                     </Button>
