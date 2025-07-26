@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { GitDriveLogo } from "@/components/icons"
-import { Github } from "lucide-react"
+import { Github, RefreshCw } from "lucide-react"
 import { 
   signInWithEmailAndPassword, 
   GithubAuthProvider, 
@@ -17,37 +17,65 @@ import {
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast"
+import { Skeleton } from "@/components/ui/skeleton";
 
 
 export default function LoginPage() {
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
-  const [num1, setNum1] = React.useState(0);
-  const [num2, setNum2] = React.useState(0);
-  const [captchaAnswer, setCaptchaAnswer] = React.useState("");
-
+  const [captchaInput, setCaptchaInput] = React.useState("");
+  const [captchaSvg, setCaptchaSvg] = React.useState<string | null>(null);
+  const [isLoadingCaptcha, setIsLoadingCaptcha] = React.useState(true);
+  
   const router = useRouter();
   const { toast } = useToast();
 
-  React.useEffect(() => {
-    // Generate numbers on the client side to avoid hydration mismatch
-    setNum1(Math.floor(Math.random() * 10) + 1);
-    setNum2(Math.floor(Math.random() * 10) + 1);
-  }, []);
-
-  const handleEmailPasswordLogin = async () => {
-    // Human verification check
-    if (parseInt(captchaAnswer, 10) !== num1 + num2) {
-      toast({
-        title: "Login Failed",
-        description: "Please solve the human verification check correctly.",
+  const fetchCaptcha = React.useCallback(async () => {
+    setIsLoadingCaptcha(true);
+    try {
+      const response = await fetch('/api/captcha');
+      const data = await response.json();
+      setCaptchaSvg(data.svg);
+    } catch (error) {
+       toast({
+        title: "Error",
+        description: "Could not load captcha. Please refresh.",
         variant: "destructive",
       });
-      return;
+      setCaptchaSvg(null);
+    } finally {
+        setIsLoadingCaptcha(false);
     }
+  }, [toast]);
 
+  React.useEffect(() => {
+    fetchCaptcha();
+  }, [fetchCaptcha]);
+
+  const handleLogin = async () => {
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      // We pass the captcha to the sign in function, it will be validated on the backend
+      const credential = await signInWithEmailAndPassword(auth, email, password);
+      
+      // Manually verify captcha before proceeding, as Firebase Auth doesn't have a direct hook.
+      // In a real app, this would be part of a server-side validation flow.
+      const captchaResponse = await fetch('/api/captcha/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ captcha: captchaInput })
+      });
+
+      if (!captchaResponse.ok) {
+          const error = await captchaResponse.json();
+          toast({
+            title: "Login Failed",
+            description: error.message || "Invalid captcha.",
+            variant: "destructive",
+          });
+          fetchCaptcha(); // get a new captcha
+          return;
+      }
+      
       router.push("/drive/files");
     } catch (error: any) {
       toast({
@@ -57,13 +85,7 @@ export default function LoginPage() {
       });
     }
   };
-
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter') {
-      handleEmailPasswordLogin();
-    }
-  };
-
+  
   const handleGitHubLogin = async () => {
     const provider = new GithubAuthProvider();
     try {
@@ -75,6 +97,13 @@ export default function LoginPage() {
         description: error.message,
         variant: "destructive",
       });
+    }
+  };
+
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      handleLogin();
     }
   };
 
@@ -115,17 +144,29 @@ export default function LoginPage() {
               />
             </div>
             <div className="grid gap-2">
-               <Label htmlFor="captcha">Human Check: What is {num1} + {num2}?</Label>
+                <Label htmlFor="captcha">Human Check</Label>
+                <div className="flex items-center gap-2">
+                    {isLoadingCaptcha ? (
+                        <Skeleton className="h-10 w-36 rounded-md" />
+                    ) : (
+                       captchaSvg && <div className="p-2 bg-white rounded-md" dangerouslySetInnerHTML={{ __html: captchaSvg }} />
+                    )}
+                    <Button variant="outline" size="icon" onClick={fetchCaptcha} disabled={isLoadingCaptcha}>
+                        <RefreshCw className="h-4 w-4" />
+                    </Button>
+                </div>
+
                <Input
                 id="captcha"
+                placeholder="Enter characters"
                 type="text"
                 required
-                value={captchaAnswer}
-                onChange={(e) => setCaptchaAnswer(e.target.value)}
+                value={captchaInput}
+                onChange={(e) => setCaptchaInput(e.target.value)}
                 onKeyDown={handleKeyDown}
               />
             </div>
-            <Button className="w-full" onClick={handleEmailPasswordLogin}>
+            <Button className="w-full" onClick={handleLogin}>
               Login
             </Button>
             <Button variant="outline" className="w-full" onClick={handleGitHubLogin}>
