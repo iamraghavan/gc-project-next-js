@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
-import svgCaptcha from 'svg-captcha';
+import { createCaptcha } from '@/lib/captcha';
 import { cookies } from 'next/headers';
 
 export async function GET() {
-  const captcha = svgCaptcha.create({
+  const captcha = createCaptcha({
     size: 6, // number of characters
-    ignoreChars: '0o1i',
     noise: 2,
     color: true,
     background: '#ffffff',
