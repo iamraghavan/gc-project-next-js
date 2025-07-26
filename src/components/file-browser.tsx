@@ -283,7 +283,7 @@ export function FileBrowser({
             {!isLoading &&
               files.map((file) => (
                 <TableRow
-                  key={file.id}
+                  key={`${file.id}-${file.name}`}
                   className="cursor-pointer"
                   data-selected={selectedFile?.id === file.id}
                   onClick={() => handleRowClick(file)}
@@ -367,8 +367,7 @@ export function FileBrowser({
             onOpenChange={setIsMoveOpen}
             title={`Move ${actionFile.name}`}
             description="Enter the new path for the item (e.g., 'documents/new-folder'). Paths are relative to the repository root."
-            inputLabel="New Path"
-            initialValue={actionFile.path}
+            inputLabel={actionFile.path}
             onAction={handleMove}
             actionLabel="Move"
           />
