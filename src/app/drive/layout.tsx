@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -17,12 +18,13 @@ import {
 } from "@/components/ui/sidebar"
 import { GitDriveLogo } from "@/components/icons"
 import { Button } from "@/components/ui/button"
-import { LayoutDashboard, File, History, Github, Settings, LogOut } from "lucide-react"
+import { LayoutDashboard, File, History, Settings, LogOut } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { auth } from "@/lib/firebase"
 import { signOut } from "firebase/auth"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
+import { format } from "date-fns"
 
 export default function MainLayout({
   children,
@@ -33,6 +35,15 @@ export default function MainLayout({
   const router = useRouter()
   const { toast } = useToast()
   const user = auth.currentUser
+  const [time, setTime] = React.useState(new Date());
+
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      setTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
 
   const isActive = (path: string) => pathname === path
 
@@ -120,10 +131,16 @@ export default function MainLayout({
       <SidebarInset>
         <header className="flex items-center justify-between p-4 border-b">
             <SidebarTrigger />
-            <Button variant="outline">
-                <Github className="mr-2 h-4 w-4"/>
-                {user ? 'Connected' : 'Login with GitHub'}
-            </Button>
+            <div className="flex items-center gap-4">
+                <div className="text-sm text-right">
+                    <div className="font-mono">{format(time, 'HH:mm:ss')}</div>
+                    <div className="text-xs text-muted-foreground">{format(time, 'PPP EEE')}</div>
+                </div>
+                <Avatar>
+                    <AvatarImage src={user?.photoURL || undefined} alt="User avatar" data-ai-hint="user avatar" />
+                    <AvatarFallback>{user?.displayName?.charAt(0) || user?.email?.charAt(0) || 'U'}</AvatarFallback>
+                </Avatar>
+            </div>
         </header>
         {children}
       </SidebarInset>
