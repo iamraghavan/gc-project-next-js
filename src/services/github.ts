@@ -1,8 +1,9 @@
+
 'use server';
 
 import { db } from '@/lib/firebase';
 import { doc, setDoc, getDoc } from "firebase/firestore"; 
-import { logActivity } from './logging';
+import { logActivity, type ApiUser } from './logging';
 
 
 export interface Repository {
@@ -141,16 +142,16 @@ export async function createFolder(repoFullName: string, path: string): Promise<
     await logActivity('create_folder', { repoFullName, path });
 }
 
-export async function uploadFile(repoFullName: string, path: string, content: string): Promise<void> {
+export async function uploadFile(repoFullName: string, path: string, content: string, message?: string, user?: ApiUser): Promise<void> {
     await githubApi(`/repos/${repoFullName}/contents/${path}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            message: `Upload file: ${path}`,
+            message: message || `Upload file: ${path}`,
             content: content,
         })
     });
-    await logActivity('upload', { repoFullName, path });
+    await logActivity('upload', { repoFullName, path }, user);
 }
 
 export async function deleteItem(repoFullName: string, path: string, sha: string, isFolder: boolean): Promise<void> {
@@ -251,7 +252,7 @@ export async function getFileMetadata(repoFullName: string, filePath: string): P
         const docId = `${repoFullName}:${filePath}`.replace(/[\/.]/g, '_');
         const docRef = doc(db, "fileMetadata", docId);
         const docSnap = await getDoc(docRef);
-        return docSnap.exists() ? docSnap.data() : null;
+        return docSnap.exists() ? docSnap.data() as { favorite?: boolean } : null;
     } catch (error) {
         console.error("Error getting file metadata:", error);
         return null;

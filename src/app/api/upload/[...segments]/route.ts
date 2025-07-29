@@ -1,12 +1,24 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { uploadFile } from "@/services/github";
+import { validateApiKey } from "@/services/apiKeys";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { segments: string[] } }
 ) {
   try {
+    const authHeader = request.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Unauthorized: Missing or invalid API key." }, { status: 401 });
+    }
+    const apiKey = authHeader.split(" ")[1];
+
+    const { isValid, user } = await validateApiKey(apiKey);
+    if (!isValid) {
+      return NextResponse.json({ error: "Unauthorized: Invalid API key." }, { status: 401 });
+    }
+
     const { segments } = params;
     if (segments.length < 3) {
       return NextResponse.json(
@@ -18,8 +30,8 @@ export async function POST(
       );
     }
 
-    const [user, repo, ...pathParts] = segments;
-    const repoFullName = `${user}/${repo}`;
+    const [owner, repo, ...pathParts] = segments;
+    const repoFullName = `${owner}/${repo}`;
     const path = pathParts.join("/");
     const fileContent = await request.text();
 
@@ -37,10 +49,10 @@ export async function POST(
         );
     }
     
-    // Convert the raw content to base64, as required by the GitHub API
     const contentAsBase64 = Buffer.from(fileContent).toString('base64');
     
-    await uploadFile(repoFullName, path, contentAsBase64);
+    // Pass the user information to the upload function for logging purposes
+    await uploadFile(repoFullName, path, contentAsBase64, `File upload by ${user?.name || user?.uid} via API`);
 
     return NextResponse.json(
       {
@@ -62,3 +74,4 @@ export async function POST(
     );
   }
 }
+

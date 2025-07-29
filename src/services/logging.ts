@@ -1,16 +1,21 @@
+
 'use server';
 
 import { db, auth } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp, getDocs, query, orderBy } from "firebase/firestore";
 import type { User } from 'firebase/auth';
 
+// This allows us to log actions from an API user who isn't the currently signed-in Firebase user
+export interface ApiUser {
+    name: string | null;
+    email: string | null;
+    avatar: string | null;
+    uid?: string;
+}
+
 export interface LogEntry {
     id?: string;
-    user: {
-        name: string | null;
-        email: string | null;
-        avatar: string | null;
-    };
+    user: ApiUser;
     action: string;
     details: {
         repoFullName: string;
@@ -20,16 +25,24 @@ export interface LogEntry {
     timestamp: Date;
 }
 
-export async function logActivity(action: string, details: LogEntry['details']) {
+export async function logActivity(action: string, details: LogEntry['details'], apiUser?: ApiUser) {
     try {
-        const user = auth.currentUser;
+        let user: ApiUser;
+
+        if (apiUser) {
+            user = apiUser;
+        } else {
+            const currentUser = auth.currentUser;
+            user = {
+                name: currentUser?.displayName || "Anonymous",
+                email: currentUser?.email || "N/A",
+                avatar: currentUser?.photoURL || null,
+            };
+        }
+
 
         const logData = {
-            user: {
-                name: user?.displayName || "Anonymous",
-                email: user?.email || "N/A",
-                avatar: user?.photoURL || null,
-            },
+            user,
             action,
             details,
             timestamp: serverTimestamp(),
