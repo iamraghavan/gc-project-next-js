@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/sidebar"
 import { GitDriveLogo } from "@/components/icons"
 import { Button } from "@/components/ui/button"
-import { LayoutDashboard, File, History, Settings, LogOut } from "lucide-react"
+import { LayoutDashboard, File, History, Settings, LogOut, Code } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { auth } from "@/lib/firebase"
 import { signOut } from "firebase/auth"
@@ -38,7 +38,8 @@ export default function MainLayout({
   const [time, setTime] = React.useState<Date | null>(null);
 
   React.useEffect(() => {
-    setTime(new Date()); // Set initial time on client
+    // Set initial time on client to avoid hydration mismatch
+    setTime(new Date()); 
     const timer = setInterval(() => {
       setTime(new Date());
     }, 1000);
@@ -99,6 +100,14 @@ export default function MainLayout({
                   Access Logs
                 </Link>
               </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/drive/api")}>
+                    <Link href="/drive/api">
+                        <Code />
+                        API Access
+                    </Link>
+                </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarContent>
