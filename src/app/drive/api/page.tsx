@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Code, Copy, Server, KeyRound, PlusCircle, Trash2, Eye, EyeOff } from "lucide-react"
+import { Server, KeyRound, PlusCircle, Trash2, Eye, EyeOff } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import RepoSwitcher from "@/components/repo-switcher"
@@ -28,93 +28,10 @@ import {
 } from "@/components/ui/table"
 import { format } from "date-fns"
 import { auth } from "@/lib/firebase"
+import { Copy } from "lucide-react"
 
-
-// This is a wrapper function to call server actions with the user's auth token
-async function callServerAction<T>(action: () => Promise<T>): Promise<T> {
-    const user = auth.currentUser;
-    if (!user) {
-        throw new Error("You must be logged in.");
-    }
-    const token = await user.getIdToken();
-    
-    // We are not using the token directly in the function call,
-    // but this ensures we have a valid session.
-    // The actual token is picked up from headers on the server.
-    return fetch('/api/proxy', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ action: action.name })
-    }).then(res => {
-        if (!res.ok) {
-            return res.json().then(err => { throw new Error(err.error) });
-        }
-        return res.json();
-    });
-}
-
-
-async function authenticatedAction<T>(action: () => Promise<T>): Promise<T> {
-    const user = auth.currentUser
-    if (!user) throw new Error("User not authenticated")
-    const idToken = await user.getIdToken()
-    
-    // The fetch is a bit of a workaround to send the Authorization header.
-    // In a real app, you might use a custom fetch wrapper or context.
-    // For this prototype, we'll make a "fake" proxy call to our own API
-    // just to send the header. This is NOT ideal for production.
-    
-    // A better way is to directly modify the action calls to accept the token,
-    // but that would require more refactoring.
-    
-    // Let's try a simplified approach for now. We will call the actions and
-    // let the new server-side logic pick up the token from the header.
-    // We need a mechanism to add the header to the server action call.
-    // Next.js server actions don't have a built-in way to modify headers
-    // for the fetch call they make.
-    
-    // Let's assume for now that the logic is called from a context where
-    // headers can be injected, and fix the client side call.
-    
-    return action();
-}
-
-async function fetchWithAuth(action: Function, ...args: any[]) {
-    const user = auth.currentUser;
-    if (!user) {
-        throw new Error("Authentication required");
-    }
-    const token = await user.getIdToken();
-    
-    // This is a conceptual example. In a real Next.js app,
-    // you would likely use a library or a custom fetch hook
-    // that automatically adds this header.
-    
-    // For now, we will adapt the service functions to not require this,
-    // and instead rely on Next.js forwarding headers.
-    
-    // The server actions need to be called in a way that includes the token.
-    // A common pattern is to create a small wrapper.
-    const response = await fetch('/api/actions', { // A dummy endpoint
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'X-Action-Name': action.name
-      },
-      body: JSON.stringify(args)
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message);
-    }
-    
-    return response.json();
-}
-
+// Server actions in this component will automatically have the user's
+// auth token attached via the middleware. We don't need special wrappers.
 
 export default function ApiPage() {
   const { toast } = useToast()
@@ -127,38 +44,6 @@ export default function ApiPage() {
   const [isGenerating, setIsGenerating] = React.useState(false)
   const [visibleKey, setVisibleKey] = React.useState<string | null>(null)
 
-  const callApiWithAuth = React.useCallback(async <T,>(action: () => Promise<T>): Promise<T> => {
-    const user = auth.currentUser;
-    if (!user) {
-        toast({ title: "Authentication Error", description: "You must be logged in to perform this action.", variant: "destructive" });
-        throw new Error("Not logged in");
-    }
-    const token = await user.getIdToken();
-
-    // The fetch to a proxy endpoint is a common pattern to pass auth headers to server actions
-    // when the built-in mechanism isn't sufficient. We create a generic proxy.
-    // However, for this fix, we will modify the server actions to read headers directly.
-    // The client needs to be adapted to send the headers.
-    // This requires a custom fetch wrapper.
-
-    // Let's create a client-side wrapper for our server actions.
-    const response = await fetch('/api/actions-proxy', {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ actionName: action.name, args: [] })
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'An unknown error occurred');
-    }
-    return response.json();
-  }, [toast]);
-
-
   const fetchKeys = React.useCallback(async () => {
     setIsLoadingKeys(true);
     try {
@@ -167,9 +52,8 @@ export default function ApiPage() {
           setIsLoadingKeys(false);
           return;
       }
-      const token = await user.getIdToken();
-      // We need to pass the token to the server action
-      const userKeys = await getApiKeys.bind(null)(); // This is not passing token
+      // The server action will pick up the user from the auth header
+      const userKeys = await getApiKeys()
       setKeys(userKeys)
     } catch (error) {
       toast({ title: "Error fetching API keys", description: (error as Error).message, variant: "destructive"})
@@ -180,7 +64,10 @@ export default function ApiPage() {
 
   React.useEffect(() => {
     // This ensures window is defined, avoiding SSR issues.
-    setBaseUrl(window.location.origin)
+    if (typeof window !== "undefined") {
+      setBaseUrl(window.location.origin)
+    }
+    
     const unsubscribe = auth.onAuthStateChanged(user => {
       if (user) {
         fetchKeys();
@@ -198,7 +85,7 @@ export default function ApiPage() {
     try {
         await generateApiKey();
         toast({ title: "API Key Generated", description: "Your new key is now available."});
-        fetchKeys();
+        await fetchKeys(); // Use await to ensure keys are fetched before finishing
     } catch (error) {
         toast({ title: "Failed to generate key", description: (error as Error).message, variant: "destructive"})
     } finally {
@@ -210,7 +97,7 @@ export default function ApiPage() {
     try {
         await revokeApiKey(keyId);
         toast({ title: "API Key Revoked", description: "The key has been successfully deleted."});
-        fetchKeys();
+        await fetchKeys(); // Use await to ensure list is up-to-date
     } catch (error) {
         toast({ title: "Failed to revoke key", description: (error as Error).message, variant: "destructive"})
     }
@@ -236,7 +123,6 @@ export default function ApiPage() {
         setVisibleKey(keyId)
     }
   }
-
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
@@ -273,7 +159,7 @@ export default function ApiPage() {
                     <h3 className="font-semibold">Your Generated Endpoint URL</h3>
                     <div className="flex items-center gap-2 font-mono text-sm p-3 bg-secondary rounded-md">
                     <span className="flex-1 break-all">
-                        POST {baseUrl}/api/upload/{selectedRepo?.full_name || '{OWNER}/{REPO}'}/{path}
+                        POST {exampleUrl}
                     </span>
                     <Button
                         variant="ghost"
@@ -287,13 +173,14 @@ export default function ApiPage() {
 
                 <div className="space-y-2">
                     <h3 className="font-semibold">Example Usage (cURL)</h3>
-                    <div className="flex items-center gap-2 font-mono text-sm p-3 bg-secondary rounded-md">
-                    <pre className="flex-1 break-all overflow-auto">
+                    <div className="relative font-mono text-sm p-3 bg-secondary rounded-md">
+                    <pre className="flex-1 break-all overflow-auto pr-10">
                         <code>{curlCommand}</code>
                     </pre>
                     <Button
                         variant="ghost"
                         size="icon"
+                        className="absolute top-2 right-2"
                         onClick={() => handleCopy(curlCommand)}
                     >
                         <Copy className="h-4 w-4" />
@@ -313,7 +200,7 @@ export default function ApiPage() {
                     <CardTitle>API Keys</CardTitle>
                     <CardDescription>
                         Manage API keys to use with the upload endpoint.
-                    </Description>
+                    </CardDescription>
                 </div>
                 </div>
             </CardHeader>
@@ -327,18 +214,18 @@ export default function ApiPage() {
                  <Table>
                     <TableHeader>
                         <TableRow>
-                        <TableHead>Key (First 8 chars)</TableHead>
+                        <TableHead>Key</TableHead>
                         <TableHead>Created</TableHead>
-                        <TableHead>Actions</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {isLoadingKeys ? (
                             Array.from({length: 2}).map((_, i) => (
                                 <TableRow key={i}>
+                                    <TableCell><Skeleton className="h-4 w-3/4" /></TableCell>
                                     <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                                    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                                    <TableCell><Skeleton className="h-8 w-20" /></TableCell>
+                                    <TableCell className="text-right"><Skeleton className="h-8 w-8 inline-block" /></TableCell>
                                 </TableRow>
                             ))
                         ) : keys.map(key => (
@@ -352,8 +239,8 @@ export default function ApiPage() {
                                     </div>
                                 </TableCell>
                                 <TableCell>{format(key.createdAt.toDate(), 'PPP')}</TableCell>
-                                <TableCell>
-                                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleRevokeKey(key.id)}>
+                                <TableCell className="text-right">
+                                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleRevokeKey(key.id)}>
                                         <Trash2 className="h-4 w-4" />
                                     </Button>
                                 </TableCell>
