@@ -1,5 +1,4 @@
 import * as admin from 'firebase-admin';
-import 'dotenv/config';
 
 const serviceAccount = {
   "type": "service_account",
@@ -15,10 +14,19 @@ const serviceAccount = {
 };
 
 if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}.firebaseio.com`
-  });
+  try {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount as any),
+      databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}.firebaseio.com`
+    });
+  } catch (error: any) {
+     console.error("Firebase Admin initialization error:", error.message);
+     // Throw a more specific error if the project_id is missing
+     if (error.message.includes('project_id')) {
+         throw new Error("FIREBASE_PROJECT_ID is not set in your environment variables. Please check your .env file or deployment settings.");
+     }
+     throw error;
+  }
 }
 
 const authAdmin = admin.auth();
