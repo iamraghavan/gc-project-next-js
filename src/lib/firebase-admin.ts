@@ -13,7 +13,8 @@ const serviceAccount = {
   "client_x509_cert_url": process.env.FIREBASE_CLIENT_X509_CERT_URL
 };
 
-if (!admin.apps.length && serviceAccount.project_id) {
+// Check if the required environment variables are present before initializing.
+if (!admin.apps.length && serviceAccount.project_id && serviceAccount.private_key) {
   try {
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount as any),
