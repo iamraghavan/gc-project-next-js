@@ -15,7 +15,6 @@ import {
 } from 'firebase/firestore'
 import { randomBytes } from 'crypto'
 import { type User } from 'firebase/auth'
-import { headers } from 'next/headers'
 import { authAdmin } from '@/lib/firebase-admin'
 
 export interface ApiKey {
@@ -30,25 +29,20 @@ function generateSecureApiKey(): string {
   return 'gitdrive_' + randomBytes(24).toString('hex')
 }
 
-async function getCurrentUser() {
+async function getCurrentUser(idToken: string) {
     if (!authAdmin) return null;
-    const authorization = headers().get("Authorization");
-    if (authorization?.startsWith("Bearer ")) {
-        const idToken = authorization.split("Bearer ")[1];
-        try {
-            const decodedToken = await authAdmin.verifyIdToken(idToken);
-            return decodedToken;
-        } catch (error) {
-            console.error("Error verifying ID token:", error);
-            return null;
-        }
+    try {
+        const decodedToken = await authAdmin.verifyIdToken(idToken);
+        return decodedToken;
+    } catch (error) {
+        console.error("Error verifying ID token:", error);
+        return null;
     }
-    return null;
 }
 
 // Create a new API key for the current user
-export async function generateApiKey(): Promise<ApiKey> {
-  const user = await getCurrentUser();
+export async function generateApiKey(idToken: string): Promise<ApiKey> {
+  const user = await getCurrentUser(idToken);
   if (!user) {
     throw new Error('You must be logged in to generate an API key.')
   }
@@ -65,34 +59,38 @@ export async function generateApiKey(): Promise<ApiKey> {
 }
 
 // Get all API keys for the current user
-export async function getApiKeys(): Promise<ApiKey[]> {
-    const user = await getCurrentUser();
-  if (!user) {
-    return []
-  }
+export async function getApiKeys(idToken: string): Promise<ApiKey[]> {
+    const user = await getCurrentUser(idToken);
+    if (!user) {
+      return []
+    }
 
-  const q = query(
-    collection(db, 'apiKeys'),
-    where('userId', '==', user.uid)
-  )
-  const querySnapshot = await getDocs(q)
-  const keys: ApiKey[] = []
-  querySnapshot.forEach((doc) => {
-    keys.push({ id: doc.id, ...doc.data() } as ApiKey)
-  })
-  return keys
+    const q = query(
+      collection(db, 'apiKeys'),
+      where('userId', '==', user.uid)
+    )
+    const querySnapshot = await getDocs(q)
+    const keys: ApiKey[] = []
+    querySnapshot.forEach((doc) => {
+      keys.push({ id: doc.id, ...doc.data() } as ApiKey)
+    })
+    return keys
 }
 
 // Revoke (delete) an API key
-export async function revokeApiKey(keyId: string): Promise<void> {
-    const user = await getCurrentUser();
+export async function revokeApiKey(idToken: string, keyId: string): Promise<void> {
+    const user = await getCurrentUser(idToken);
     if (!user) {
         throw new Error("Authentication required.");
     }
     
-    // You might want to add a check here to ensure the user owns the key they're trying to delete
-    // For now, we assume the client-side only shows keys belonging to the user.
     const keyDocRef = doc(db, 'apiKeys', keyId);
+    const keyDoc = await getDoc(keyDocRef);
+
+    if (!keyDoc.exists() || keyDoc.data().userId !== user.uid) {
+        throw new Error("API key not found or you don't have permission to revoke it.");
+    }
+
     await deleteDoc(keyDocRef);
 }
 
@@ -141,3 +139,5 @@ export async function validateApiKey(key: string): Promise<{ isValid: boolean, u
     return { isValid: false, user: null }
   }
 }
+
+    

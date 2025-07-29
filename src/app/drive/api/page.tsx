@@ -30,8 +30,6 @@ import { format } from "date-fns"
 import { auth } from "@/lib/firebase"
 import { Copy } from "lucide-react"
 
-// Server actions in this component will automatically have the user's
-// auth token attached via the middleware. We don't need special wrappers.
 
 export default function ApiPage() {
   const { toast } = useToast()
@@ -52,8 +50,8 @@ export default function ApiPage() {
           setIsLoadingKeys(false);
           return;
       }
-      // The server action will pick up the user from the auth header
-      const userKeys = await getApiKeys()
+      const idToken = await user.getIdToken();
+      const userKeys = await getApiKeys(idToken)
       setKeys(userKeys)
     } catch (error) {
       toast({ title: "Error fetching API keys", description: (error as Error).message, variant: "destructive"})
@@ -63,7 +61,6 @@ export default function ApiPage() {
   }, [toast])
 
   React.useEffect(() => {
-    // This ensures window is defined, avoiding SSR issues.
     if (typeof window !== "undefined") {
       setBaseUrl(window.location.origin)
     }
@@ -83,9 +80,12 @@ export default function ApiPage() {
   const handleGenerateKey = async () => {
     setIsGenerating(true)
     try {
-        await generateApiKey();
+        const user = auth.currentUser;
+        if (!user) throw new Error("You must be logged in.");
+        const idToken = await user.getIdToken();
+        await generateApiKey(idToken);
         toast({ title: "API Key Generated", description: "Your new key is now available."});
-        await fetchKeys(); // Use await to ensure keys are fetched before finishing
+        await fetchKeys(); 
     } catch (error) {
         toast({ title: "Failed to generate key", description: (error as Error).message, variant: "destructive"})
     } finally {
@@ -95,9 +95,12 @@ export default function ApiPage() {
   
   const handleRevokeKey = async (keyId: string) => {
     try {
-        await revokeApiKey(keyId);
+        const user = auth.currentUser;
+        if (!user) throw new Error("You must be logged in.");
+        const idToken = await user.getIdToken();
+        await revokeApiKey(idToken, keyId);
         toast({ title: "API Key Revoked", description: "The key has been successfully deleted."});
-        await fetchKeys(); // Use await to ensure list is up-to-date
+        await fetchKeys();
     } catch (error) {
         toast({ title: "Failed to revoke key", description: (error as Error).message, variant: "destructive"})
     }
@@ -260,3 +263,5 @@ export default function ApiPage() {
     </div>
   )
 }
+
+    

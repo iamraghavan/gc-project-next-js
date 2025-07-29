@@ -2,7 +2,7 @@
 'use server';
 
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, getDocs, query, orderBy } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, getDocs, query, orderBy, getDoc } from "firebase/firestore";
 import { headers } from 'next/headers'
 import { authAdmin } from '@/lib/firebase-admin';
 
@@ -103,3 +103,5 @@ export async function getLogs(): Promise<LogEntry[]> {
         return [];
     }
 }
+
+    
