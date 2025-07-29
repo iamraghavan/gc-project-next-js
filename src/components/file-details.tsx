@@ -41,14 +41,6 @@ function FilePreview({ file, repo }: { file: FileItem, repo: Repository | null }
 
 export function FileDetails({ file, repo }: { file: FileItem | null, repo: Repository | null }) {
   const { toast } = useToast();
-  const [baseUrl, setBaseUrl] = React.useState('');
-
-  React.useEffect(() => {
-    // This will run only on the client side, after hydration, to avoid mismatches.
-    if (typeof window !== 'undefined') {
-      setBaseUrl(window.location.origin);
-    }
-  }, []);
   
   if (!file || !repo) {
     return (
@@ -61,7 +53,7 @@ export function FileDetails({ file, repo }: { file: FileItem | null, repo: Repos
   }
   
   const rawUrl = `https://raw.githubusercontent.com/${repo.full_name}/main/${file.path}`;
-  const publicCdnUrl = baseUrl ? `${baseUrl}/${file.path}` : '';
+  const jsDelivrUrl = `https://cdn.jsdelivr.net/gh/${repo.full_name}/main/${file.path}`;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(rawUrl)}`;
 
   const handleCopy = (url: string, message: string) => {
@@ -105,14 +97,14 @@ export function FileDetails({ file, repo }: { file: FileItem | null, repo: Repos
           </div>
 
           <div>
-            <h3 className="text-sm font-medium text-muted-foreground mb-2">Public Access CDN Link</h3>
+            <h3 className="text-sm font-medium text-muted-foreground mb-2">Public Access CDN Link (jsDelivr)</h3>
             <div className="flex items-center gap-2">
-              <Input readOnly value={publicCdnUrl} placeholder="Loading..." className="bg-secondary"/>
-              <Button variant="outline" size="icon" onClick={() => handleCopy(publicCdnUrl, "The Public Access CDN link has been copied.")} disabled={!publicCdnUrl}>
+              <Input readOnly value={jsDelivrUrl} className="bg-secondary"/>
+              <Button variant="outline" size="icon" onClick={() => handleCopy(jsDelivrUrl, "The jsDelivr CDN link has been copied.")}>
                 <Copy className="h-4 w-4" />
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground mt-2">This link uses the base URL of the currently deployed site.</p>
+            <p className="text-xs text-muted-foreground mt-2">A fast, public CDN link provided by jsDelivr.</p>
           </div>
         </div>
       </CardContent>
