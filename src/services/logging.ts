@@ -1,9 +1,11 @@
 
 'use server';
 
-import { db, auth } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp, getDocs, query, orderBy } from "firebase/firestore";
-import type { User } from 'firebase/auth';
+import { headers } from 'next/headers'
+import { authAdmin } from '@/lib/firebase-admin';
+
 
 // This allows us to log actions from an API user who isn't the currently signed-in Firebase user
 export interface ApiUser {
@@ -25,19 +27,36 @@ export interface LogEntry {
     timestamp: Date;
 }
 
+async function getCurrentUser() {
+    const authorization = headers().get("Authorization");
+    if (authorization?.startsWith("Bearer ")) {
+        const idToken = authorization.split("Bearer ")[1];
+        try {
+            const decodedToken = await authAdmin.verifyIdToken(idToken);
+            const userRecord = await authAdmin.getUser(decodedToken.uid);
+            return {
+                name: userRecord.displayName || "Anonymous",
+                email: userRecord.email || "N/A",
+                avatar: userRecord.photoURL || null,
+            };
+        } catch (error) {
+            console.error("Error verifying ID token for logging:", error);
+            return { name: "System", email: "N/A", avatar: null };
+        }
+    }
+     return { name: "Anonymous Web User", email: "N/A", avatar: null };
+}
+
 export async function logActivity(action: string, details: LogEntry['details'], apiUser?: ApiUser) {
     try {
         let user: ApiUser;
 
         if (apiUser) {
+            // If an API user is explicitly passed (e.g., from an API key), use that.
             user = apiUser;
         } else {
-            const currentUser = auth.currentUser;
-            user = {
-                name: currentUser?.displayName || "Anonymous",
-                email: currentUser?.email || "N/A",
-                avatar: currentUser?.photoURL || null,
-            };
+            // Otherwise, determine the user from the session token.
+            user = await getCurrentUser();
         }
 
 

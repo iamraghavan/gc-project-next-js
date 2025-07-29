@@ -29,7 +29,7 @@ export interface FileItem {
 }
 
 
-const GITHUB_TOKEN = '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';
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN; // It's better to use environment variables
 const GITHUB_API_URL = 'https://api.github.com';
 
 async function githubApi(endpoint: string, options: RequestInit = {}) {
