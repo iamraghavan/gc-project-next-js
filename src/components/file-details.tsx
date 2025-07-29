@@ -8,12 +8,9 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  CardFooter
 } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import type { FileItem } from "./file-browser"
-import { Copy, Download, QrCode, X, File as FileIcon } from "lucide-react"
+import { Copy, Download, QrCode, File as FileIcon } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -22,8 +19,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "./ui/input"
-import { Repository, saveFileMetadata } from "@/services/github"
+import { Repository } from "@/services/github"
 import { useToast } from "@/hooks/use-toast"
+import { Button } from "./ui/button"
 
 function FilePreview({ file, repo }: { file: FileItem, repo: Repository | null }) {
   const rawUrl = repo ? `https://raw.githubusercontent.com/${repo.full_name}/main/${file.path}` : ''
@@ -43,12 +41,12 @@ function FilePreview({ file, repo }: { file: FileItem, repo: Repository | null }
 
 export function FileDetails({ file, repo }: { file: FileItem | null, repo: Repository | null }) {
   const { toast } = useToast();
-  const [cloudflareBaseUrl, setCloudflareBaseUrl] = React.useState('');
+  const [baseUrl, setBaseUrl] = React.useState('');
 
   React.useEffect(() => {
     // This will run only on the client side, after hydration, to avoid mismatches.
     if (typeof window !== 'undefined') {
-      setCloudflareBaseUrl(window.location.origin);
+      setBaseUrl(window.location.origin);
     }
   }, []);
   
@@ -63,7 +61,7 @@ export function FileDetails({ file, repo }: { file: FileItem | null, repo: Repos
   }
   
   const rawUrl = `https://raw.githubusercontent.com/${repo.full_name}/main/${file.path}`;
-  const cloudflareUrl = cloudflareBaseUrl ? `${cloudflareBaseUrl}/${file.path}` : '';
+  const publicCdnUrl = baseUrl ? `${baseUrl}/${file.path}` : '';
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(rawUrl)}`;
 
   const handleCopy = (url: string, message: string) => {
@@ -73,27 +71,6 @@ export function FileDetails({ file, repo }: { file: FileItem | null, repo: Repos
       description: message,
     })
   }
-  
-  const handleSetExpiration = async (e: React.FormEvent<HTMLFormElement>) => {
-      e.preventDefault();
-      const formData = new FormData(e.currentTarget);
-      const expirationDate = formData.get('expirationDate') as string;
-
-      try {
-          await saveFileMetadata(repo.full_name, file.path, { expiration: expirationDate || null });
-          toast({
-              title: "Success",
-              description: "File expiration has been set.",
-          });
-      } catch (error) {
-          toast({
-              title: "Error",
-              description: "Failed to set file expiration.",
-              variant: "destructive"
-          });
-      }
-  }
-
 
   return (
     <Card className="h-full overflow-auto">
@@ -128,37 +105,15 @@ export function FileDetails({ file, repo }: { file: FileItem | null, repo: Repos
           </div>
 
           <div>
-            <h3 className="text-sm font-medium text-muted-foreground mb-2">Cloudflare Pages CDN Link</h3>
+            <h3 className="text-sm font-medium text-muted-foreground mb-2">Public Access CDN Link</h3>
             <div className="flex items-center gap-2">
-              <Input readOnly value={cloudflareUrl} placeholder="Loading..." className="bg-secondary"/>
-              <Button variant="outline" size="icon" onClick={() => handleCopy(cloudflareUrl, "The Cloudflare Pages CDN link has been copied.")} disabled={!cloudflareUrl}>
+              <Input readOnly value={publicCdnUrl} placeholder="Loading..." className="bg-secondary"/>
+              <Button variant="outline" size="icon" onClick={() => handleCopy(publicCdnUrl, "The Public Access CDN link has been copied.")} disabled={!publicCdnUrl}>
                 <Copy className="h-4 w-4" />
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground mt-2">This link will be available after your next Cloudflare Pages deployment.</p>
+            <p className="text-xs text-muted-foreground mt-2">This link uses the base URL of the currently deployed site.</p>
           </div>
-
-          <div>
-            <h3 className="text-sm font-medium text-muted-foreground mb-2">Tags</h3>
-            <div className="flex flex-wrap gap-2">
-              {file.tags.map((tag) => (
-                <Badge key={tag} variant="outline" className="flex items-center gap-1 pr-1">
-                  {tag}
-                  <button className="rounded-full hover:bg-muted p-0.5"><X className="h-3 w-3" /></button>
-                </Badge>
-              ))}
-               <Input placeholder="Add tag..." className="h-8 w-auto flex-1 min-w-[100px]" />
-            </div>
-          </div>
-          
-           <form onSubmit={handleSetExpiration}>
-            <h3 className="text-sm font-medium text-muted-foreground mb-2">File Expiration</h3>
-            <div className="flex items-center gap-2">
-                <Input type="date" name="expirationDate" className="w-auto" />
-                <Button variant="outline" type="submit">Set Expiration</Button>
-            </div>
-             <p className="text-xs text-muted-foreground mt-2">Leave blank for no expiration.</p>
-          </form>
         </div>
       </CardContent>
     </Card>
