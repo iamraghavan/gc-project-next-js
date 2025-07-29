@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import type { FileItem } from "./file-browser"
-import { Copy, Download, QrCode, File as FileIcon } from "lucide-react"
+import { Copy, QrCode, File as FileIcon } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -53,7 +53,7 @@ export function FileDetails({ file, repo }: { file: FileItem | null, repo: Repos
   }
   
   const rawUrl = `https://raw.githubusercontent.com/${repo.full_name}/main/${file.path}`;
-  const jsDelivrUrl = `https://cdn.jsdelivr.net/gh/${repo.full_name}/main/${file.path}`;
+  const jsDelivrUrl = `https://cdn.jsdelivr.net/gh/${repo.full_name}@main/${file.path}`;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(rawUrl)}`;
 
   const handleCopy = (url: string, message: string) => {
