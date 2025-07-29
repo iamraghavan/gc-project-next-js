@@ -1,7 +1,7 @@
 
 'use server'
 
-import { db, auth } from '@/lib/firebase'
+import { db } from '@/lib/firebase'
 import {
   collection,
   addDoc,
@@ -31,6 +31,7 @@ function generateSecureApiKey(): string {
 }
 
 async function getCurrentUser() {
+    if (!authAdmin) return null;
     const authorization = headers().get("Authorization");
     if (authorization?.startsWith("Bearer ")) {
         const idToken = authorization.split("Bearer ")[1];
@@ -98,6 +99,10 @@ export async function revokeApiKey(keyId: string): Promise<void> {
 
 // Validate an API key and get the associated user info
 export async function validateApiKey(key: string): Promise<{ isValid: boolean, user: User | null }> {
+  if (!authAdmin) {
+    console.error("Firebase Admin SDK not initialized. Cannot validate API key.");
+    return { isValid: false, user: null };
+  }
   try {
     const q = query(collection(db, 'apiKeys'), where('key', '==', key))
     const querySnapshot = await getDocs(q)

@@ -27,7 +27,8 @@ export interface LogEntry {
     timestamp: Date;
 }
 
-async function getCurrentUser() {
+async function getCurrentUser(): Promise<ApiUser | null> {
+    if (!authAdmin) return null;
     const authorization = headers().get("Authorization");
     if (authorization?.startsWith("Bearer ")) {
         const idToken = authorization.split("Bearer ")[1];
@@ -49,7 +50,7 @@ async function getCurrentUser() {
 
 export async function logActivity(action: string, details: LogEntry['details'], apiUser?: ApiUser) {
     try {
-        let user: ApiUser;
+        let user: ApiUser | null = null;
 
         if (apiUser) {
             // If an API user is explicitly passed (e.g., from an API key), use that.
@@ -57,6 +58,10 @@ export async function logActivity(action: string, details: LogEntry['details'], 
         } else {
             // Otherwise, determine the user from the session token.
             user = await getCurrentUser();
+        }
+
+        if (!user) {
+            user = { name: "System (Unknown)", email: "N/A", avatar: null };
         }
 
 

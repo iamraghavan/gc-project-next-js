@@ -13,7 +13,7 @@ const serviceAccount = {
   "client_x509_cert_url": process.env.FIREBASE_CLIENT_X509_CERT_URL
 };
 
-if (!admin.apps.length) {
+if (!admin.apps.length && serviceAccount.project_id) {
   try {
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount as any),
@@ -21,15 +21,10 @@ if (!admin.apps.length) {
     });
   } catch (error: any) {
      console.error("Firebase Admin initialization error:", error.message);
-     // Throw a more specific error if the project_id is missing
-     if (error.message.includes('project_id')) {
-         throw new Error("FIREBASE_PROJECT_ID is not set in your environment variables. Please check your .env file or deployment settings.");
-     }
-     throw error;
   }
 }
 
-const authAdmin = admin.auth();
-const dbAdmin = admin.firestore();
+const authAdmin = admin.apps.length ? admin.auth() : null;
+const dbAdmin = admin.apps.length ? admin.firestore() : null;
 
 export { authAdmin, dbAdmin };
