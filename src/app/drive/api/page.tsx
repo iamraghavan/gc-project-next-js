@@ -16,7 +16,6 @@ import RepoSwitcher from "@/components/repo-switcher"
 import { type Repository } from "@/services/github"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { generateApiKey, getApiKeys, revokeApiKey, type ApiKey } from "@/services/apiKeys"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -29,7 +28,14 @@ import {
 import { format } from "date-fns"
 import { auth } from "@/lib/firebase"
 import { Copy } from "lucide-react"
+import { Timestamp } from "firebase/firestore"
 
+export interface ApiKey {
+  id: string;
+  key: string;
+  userId: string;
+  createdAt: Timestamp;
+}
 
 export default function ApiPage() {
   const { toast } = useToast()
@@ -44,15 +50,29 @@ export default function ApiPage() {
 
   const fetchKeys = React.useCallback(async () => {
     setIsLoadingKeys(true);
+    const user = auth.currentUser;
+    if (!user) {
+        setKeys([]);
+        setIsLoadingKeys(false);
+        return;
+    }
+
     try {
-      const user = auth.currentUser;
-      if (!user) {
-          setKeys([]);
-          setIsLoadingKeys(false);
-          return;
+      const token = await user.getIdToken();
+      const response = await fetch('/api/keys/get', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch API keys.');
       }
-      const userKeys = await getApiKeys()
-      setKeys(userKeys)
+      
+      const userKeys = (data.keys || []).map((key: any) => ({
+        ...key,
+        createdAt: new Timestamp(key.createdAt._seconds, key.createdAt._nanoseconds)
+      }));
+      setKeys(userKeys);
     } catch (error) {
       toast({ title: "Error fetching API keys", description: (error as Error).message, variant: "destructive"})
     } finally {
@@ -79,9 +99,23 @@ export default function ApiPage() {
 
 
   const handleGenerateKey = async () => {
+    const user = auth.currentUser;
+    if (!user) {
+        toast({ title: "Failed to generate key", description: "You must be logged in to generate an API key.", variant: "destructive"})
+        return;
+    }
     setIsGenerating(true)
     try {
-        await generateApiKey();
+        const token = await user.getIdToken();
+        const response = await fetch('/api/keys/generate', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+        });
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.error || 'Failed to generate key');
+        }
+
         toast({ title: "API Key Generated", description: "Your new key is now available."});
         await fetchKeys(); 
     } catch (error) {
@@ -92,8 +126,26 @@ export default function ApiPage() {
   }
   
   const handleRevokeKey = async (keyId: string) => {
+    const user = auth.currentUser;
+    if (!user) {
+        toast({ title: "Failed to revoke key", description: "You must be logged in.", variant: "destructive"})
+        return;
+    }
     try {
-        await revokeApiKey(keyId);
+        const token = await user.getIdToken();
+        const response = await fetch('/api/keys/revoke', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ keyId }),
+        });
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.error || 'Failed to revoke key');
+        }
+
         toast({ title: "API Key Revoked", description: "The key has been successfully deleted."});
         await fetchKeys();
     } catch (error) {

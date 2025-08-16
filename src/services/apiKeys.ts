@@ -4,7 +4,6 @@
 import {
   Timestamp,
 } from 'firebase/firestore'
-import { auth } from '@/lib/firebase';
 import { type User } from 'firebase/auth'
 
 export interface ApiKey {
@@ -13,58 +12,6 @@ export interface ApiKey {
   userId: string;
   createdAt: Timestamp;
 }
-
-// This helper function will run on the client, get the token, and call the API route.
-async function callKeyApi(endpoint: string, method: 'GET' | 'POST' = 'GET', body?: any) {
-    const user = auth.currentUser;
-    if (!user) {
-        throw new Error("You must be logged in to manage API keys.");
-    }
-    
-    const token = await user.getIdToken();
-
-    const response = await fetch(endpoint, {
-        method: method,
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-        },
-        body: body ? JSON.stringify(body) : undefined,
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-        throw new Error(result.error || `Failed to call ${endpoint}`);
-    }
-    
-    return result;
-}
-
-
-// Create a new API key for the current user
-export async function generateApiKey(): Promise<{ success: boolean; key: string }> {
-  return callKeyApi('/api/keys/generate', 'POST');
-}
-
-// Get all API keys for the current user
-export async function getApiKeys(): Promise<ApiKey[]> {
-    const data = await callKeyApi('/api/keys/get') as any;
-    if (!data.keys) {
-        return [];
-    }
-    // Timestamps from API routes are serialized, so we need to convert them back
-    return data.keys.map((key: any) => ({
-        ...key,
-        createdAt: new Timestamp(key.createdAt._seconds, key.createdAt._nanoseconds)
-    }));
-}
-
-// Revoke (delete) an API key
-export async function revokeApiKey(keyId: string): Promise<{ success: boolean }> {
-    return callKeyApi('/api/keys/revoke', 'POST', { keyId });
-}
-
 
 // This server-side function is for the public file upload API endpoint to use, not the client app
 import { dbAdmin, authAdmin } from '@/lib/firebase-admin';
