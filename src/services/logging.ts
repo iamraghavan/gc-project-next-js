@@ -29,23 +29,27 @@ export interface LogEntry {
 
 async function getCurrentUser(): Promise<ApiUser | null> {
     if (!authAdmin) return null;
+
+    // This is the intended way to get the token in a server action context
     const authorization = headers().get("Authorization");
-    if (authorization?.startsWith("Bearer ")) {
-        const idToken = authorization.split("Bearer ")[1];
-        try {
-            const decodedToken = await authAdmin.verifyIdToken(idToken);
-            const userRecord = await authAdmin.getUser(decodedToken.uid);
-            return {
-                name: userRecord.displayName || "Anonymous",
-                email: userRecord.email || "N/A",
-                avatar: userRecord.photoURL || null,
-            };
-        } catch (error) {
-            console.error("Error verifying ID token for logging:", error);
-            return { name: "System", email: "N/A", avatar: null };
-        }
+    if (!authorization?.startsWith("Bearer ")) {
+        return { name: "Anonymous Web User", email: "N/A", avatar: null };
     }
-     return { name: "Anonymous Web User", email: "N/A", avatar: null };
+
+    const idToken = authorization.split("Bearer ")[1];
+    try {
+        const decodedToken = await authAdmin.verifyIdToken(idToken);
+        const userRecord = await authAdmin.getUser(decodedToken.uid);
+        return {
+            name: userRecord.displayName || "Anonymous",
+            email: userRecord.email || "N/A",
+            avatar: userRecord.photoURL || null,
+        };
+    } catch (error) {
+        console.error("Error verifying ID token for logging:", error);
+        // Don't throw, just log as a system user if token is invalid
+        return { name: "System (Invalid Token)", email: "N/A", avatar: null };
+    }
 }
 
 export async function logActivity(action: string, details: LogEntry['details'], apiUser?: ApiUser) {
@@ -103,5 +107,3 @@ export async function getLogs(): Promise<LogEntry[]> {
         return [];
     }
 }
-
-    

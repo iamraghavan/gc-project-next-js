@@ -30,30 +30,32 @@ function generateSecureApiKey(): string {
   return 'gitdrive_' + randomBytes(24).toString('hex')
 }
 
-async function getCurrentUser(idToken: string): Promise<{uid: string} | null> {
-    if (!authAdmin) return null;
-    if (!idToken) return null;
+// This is the single, reliable source for getting the user's UID from an ID token.
+async function getUserUidFromToken(idToken: string): Promise<string> {
+    if (!authAdmin) {
+        throw new Error("Authentication service is not available.");
+    }
+    if (!idToken) {
+        throw new Error("Authentication token is missing.");
+    }
 
     try {
         const decodedToken = await authAdmin.verifyIdToken(idToken);
-        return { uid: decodedToken.uid };
+        return decodedToken.uid;
     } catch (error) {
         console.error("Error verifying ID token:", error);
-        throw new Error("Invalid authentication token.");
+        throw new Error("Invalid or expired authentication token.");
     }
 }
 
 // Create a new API key for the current user
 export async function generateApiKey(idToken: string): Promise<ApiKey> {
-  const user = await getCurrentUser(idToken);
-  if (!user) {
-    throw new Error('You must be logged in to generate an API key.')
-  }
-
+  const userId = await getUserUidFromToken(idToken);
+  
   const apiKey = generateSecureApiKey()
   const apiKeyData = {
     key: apiKey,
-    userId: user.uid,
+    userId: userId,
     createdAt: serverTimestamp(),
   }
 
@@ -63,14 +65,11 @@ export async function generateApiKey(idToken: string): Promise<ApiKey> {
 
 // Get all API keys for the current user
 export async function getApiKeys(idToken: string): Promise<ApiKey[]> {
-    const user = await getCurrentUser(idToken);
-    if (!user) {
-      return []
-    }
+    const userId = await getUserUidFromToken(idToken);
 
     const q = query(
       collection(db, 'apiKeys'),
-      where('userId', '==', user.uid)
+      where('userId', '==', userId)
     )
     const querySnapshot = await getDocs(q)
     const keys: ApiKey[] = []
@@ -82,15 +81,12 @@ export async function getApiKeys(idToken: string): Promise<ApiKey[]> {
 
 // Revoke (delete) an API key
 export async function revokeApiKey(idToken: string, keyId: string): Promise<void> {
-    const user = await getCurrentUser(idToken);
-    if (!user) {
-        throw new Error("Authentication required.");
-    }
+    const userId = await getUserUidFromToken(idToken);
     
     const keyDocRef = doc(db, 'apiKeys', keyId);
     const keyDocSnapshot = await getDoc(keyDocRef);
 
-    if (!keyDocSnapshot.exists() || keyDocSnapshot.data().userId !== user.uid) {
+    if (!keyDocSnapshot.exists() || keyDocSnapshot.data().userId !== userId) {
         throw new Error("API key not found or you don't have permission to revoke it.");
     }
 
