@@ -1,22 +1,11 @@
 
 'use server'
 
-import { db } from '@/lib/firebase'
 import {
-  collection,
-  addDoc,
-  query,
-  where,
-  getDocs,
-  serverTimestamp,
-  deleteDoc,
-  doc,
   Timestamp,
-  getDoc,
 } from 'firebase/firestore'
-import { randomBytes } from 'crypto'
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { type User } from 'firebase/auth'
-import { authAdmin } from '@/lib/firebase-admin'
 
 export interface ApiKey {
   id: string;
@@ -25,83 +14,52 @@ export interface ApiKey {
   createdAt: Timestamp;
 }
 
-// Generates a secure random API key
-function generateSecureApiKey(): string {
-  return 'gitdrive_' + randomBytes(24).toString('hex')
-}
+const functions = getFunctions();
 
-// This is the single, reliable source for getting the user's UID from an ID token.
-async function getUserUidFromToken(idToken: string): Promise<string> {
-    if (!authAdmin) {
-        throw new Error("Authentication service is not available. Please configure server-side environment variables.");
-    }
-    if (!idToken) {
-        throw new Error("Authentication token is missing.");
-    }
-
+const callApiKeyFunction = async (action: string, params?: any) => {
     try {
-        const decodedToken = await authAdmin.verifyIdToken(idToken);
-        return decodedToken.uid;
-    } catch (error) {
-        console.error("Error verifying ID token:", error);
-        throw new Error("Invalid or expired authentication token.");
+        const func = httpsCallable(functions, action);
+        const result = await func(params);
+        return result.data;
+    } catch (error: any) {
+        console.error(`Error calling ${action} function:`, error.message);
+        throw new Error(error.message || `Failed to execute ${action}.`);
     }
 }
 
 // Create a new API key for the current user
-export async function generateApiKey(idToken: string): Promise<ApiKey> {
-  const userId = await getUserUidFromToken(idToken);
-  
-  const apiKey = generateSecureApiKey()
-  const apiKeyData = {
-    key: apiKey,
-    userId: userId,
-    createdAt: serverTimestamp(),
-  }
-
-  const docRef = await addDoc(collection(db, 'apiKeys'), apiKeyData)
-  return { id: docRef.id, ...apiKeyData, createdAt: new Timestamp(new Date().getTime() / 1000, 0) } as ApiKey
+export async function generateApiKey(): Promise<{ success: boolean }> {
+  return callApiKeyFunction('generateApiKey');
 }
 
 // Get all API keys for the current user
-export async function getApiKeys(idToken: string): Promise<ApiKey[]> {
-    const userId = await getUserUidFromToken(idToken);
-
-    const q = query(
-      collection(db, 'apiKeys'),
-      where('userId', '==', userId)
-    )
-    const querySnapshot = await getDocs(q)
-    const keys: ApiKey[] = []
-    querySnapshot.forEach((doc) => {
-      keys.push({ id: doc.id, ...doc.data() } as ApiKey)
-    })
-    return keys
+export async function getApiKeys(): Promise<ApiKey[]> {
+    const data = await callApiKeyFunction('getApiKeys') as any;
+    // Timestamps from callable functions are returned as objects, so we need to convert them
+    return data.keys.map((key: any) => ({
+        ...key,
+        createdAt: new Timestamp(key.createdAt._seconds, key.createdAt._nanoseconds)
+    }));
 }
 
 // Revoke (delete) an API key
-export async function revokeApiKey(idToken: string, keyId: string): Promise<void> {
-    const userId = await getUserUidFromToken(idToken);
-    
-    const keyDocRef = doc(db, 'apiKeys', keyId);
-    const keyDocSnapshot = await getDoc(keyDocRef);
-
-    if (!keyDocSnapshot.exists() || keyDocSnapshot.data().userId !== userId) {
-        throw new Error("API key not found or you don't have permission to revoke it.");
-    }
-
-    await deleteDoc(keyDocRef);
+export async function revokeApiKey(keyId: string): Promise<{ success: boolean }> {
+    return callApiKeyFunction('revokeApiKey', { keyId });
 }
 
 
+// This server-side function is for the API endpoint to use, not the client app
+import { dbAdmin, authAdmin } from '@/lib/firebase-admin';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+
 // Validate an API key and get the associated user info
 export async function validateApiKey(key: string): Promise<{ isValid: boolean, user: User | null }> {
-  if (!authAdmin) {
+  if (!authAdmin || !dbAdmin) {
     console.error("Firebase Admin SDK not initialized. Cannot validate API key.");
     return { isValid: false, user: null };
   }
   try {
-    const q = query(collection(db, 'apiKeys'), where('key', '==', key))
+    const q = query(collection(dbAdmin, 'apiKeys'), where('key', '==', key))
     const querySnapshot = await getDocs(q)
 
     if (querySnapshot.empty) {
@@ -138,3 +96,6 @@ export async function validateApiKey(key: string): Promise<{ isValid: boolean, u
     return { isValid: false, user: null }
   }
 }
+
+
+    

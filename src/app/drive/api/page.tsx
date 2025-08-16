@@ -48,11 +48,9 @@ export default function ApiPage() {
       const user = auth.currentUser;
       if (!user) {
           setKeys([]);
-          setIsLoadingKeys(false);
           return;
       }
-      const idToken = await user.getIdToken();
-      const userKeys = await getApiKeys(idToken)
+      const userKeys = await getApiKeys()
       setKeys(userKeys)
     } catch (error) {
       toast({ title: "Error fetching API keys", description: (error as Error).message, variant: "destructive"})
@@ -80,14 +78,15 @@ export default function ApiPage() {
 
 
   const handleGenerateKey = async () => {
+    const user = auth.currentUser;
+    if (!user) {
+      toast({ title: "Failed to generate key", description: "You must be logged in to generate an API key.", variant: "destructive"})
+      return;
+    }
+
     setIsGenerating(true)
     try {
-        const user = auth.currentUser;
-        if (!user) {
-          throw new Error("You must be logged in to generate an API key.");
-        }
-        const idToken = await user.getIdToken(true);
-        await generateApiKey(idToken);
+        await generateApiKey();
         toast({ title: "API Key Generated", description: "Your new key is now available."});
         await fetchKeys(); 
     } catch (error) {
@@ -98,13 +97,14 @@ export default function ApiPage() {
   }
   
   const handleRevokeKey = async (keyId: string) => {
+     const user = auth.currentUser;
+    if (!user) {
+      toast({ title: "Failed to revoke key", description: "You must be logged in to revoke an API key.", variant: "destructive"})
+      return;
+    }
+
     try {
-        const user = auth.currentUser;
-        if (!user) {
-          throw new Error("You must be logged in to revoke an API key.");
-        }
-        const idToken = await user.getIdToken(true);
-        await revokeApiKey(idToken, keyId);
+        await revokeApiKey(keyId);
         toast({ title: "API Key Revoked", description: "The key has been successfully deleted."});
         await fetchKeys();
     } catch (error) {
@@ -247,7 +247,7 @@ export default function ApiPage() {
                                         </Button>
                                     </div>
                                 </TableCell>
-                                <TableCell>{format(key.createdAt.toDate(), 'PPP')}</TableCell>
+                                <TableCell>{format(new Date(key.createdAt.seconds * 1000), 'PPP')}</TableCell>
                                 <TableCell className="text-right">
                                     <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleRevokeKey(key.id)}>
                                         <Trash2 className="h-4 w-4" />
@@ -269,3 +269,5 @@ export default function ApiPage() {
     </div>
   )
 }
+
+    

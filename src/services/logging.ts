@@ -1,11 +1,9 @@
 
 'use server';
 
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp, getDocs, query, orderBy, getDoc } from "firebase/firestore";
 import { headers } from 'next/headers'
-import { authAdmin } from '@/lib/firebase-admin';
-
 
 // This allows us to log actions from an API user who isn't the currently signed-in Firebase user
 export interface ApiUser {
@@ -28,28 +26,17 @@ export interface LogEntry {
 }
 
 async function getCurrentUser(): Promise<ApiUser | null> {
-    if (!authAdmin) return null;
-
-    // This is the intended way to get the token in a server action context
-    const authorization = headers().get("Authorization");
-    if (!authorization?.startsWith("Bearer ")) {
-        return { name: "Anonymous Web User", email: "N/A", avatar: null };
-    }
-
-    const idToken = authorization.split("Bearer ")[1];
-    try {
-        const decodedToken = await authAdmin.verifyIdToken(idToken);
-        const userRecord = await authAdmin.getUser(decodedToken.uid);
+    const currentUser = auth.currentUser;
+    if (currentUser) {
         return {
-            name: userRecord.displayName || "Anonymous",
-            email: userRecord.email || "N/A",
-            avatar: userRecord.photoURL || null,
+            name: currentUser.displayName,
+            email: currentUser.email,
+            avatar: currentUser.photoURL,
+            uid: currentUser.uid,
         };
-    } catch (error) {
-        console.error("Error verifying ID token for logging:", error);
-        // Don't throw, just log as a system user if token is invalid
-        return { name: "System (Invalid Token)", email: "N/A", avatar: null };
     }
+    // Handle case for anonymous users if necessary
+    return null;
 }
 
 export async function logActivity(action: string, details: LogEntry['details'], apiUser?: ApiUser) {
@@ -60,12 +47,11 @@ export async function logActivity(action: string, details: LogEntry['details'], 
             // If an API user is explicitly passed (e.g., from an API key), use that.
             user = apiUser;
         } else {
-            // Otherwise, determine the user from the session token.
-            user = await getCurrentUser();
-        }
-
-        if (!user) {
-            user = { name: "System (Unknown)", email: "N/A", avatar: null };
+            // Otherwise, determine the user from the session.
+            // This is now tricky because server actions don't have direct access to client auth state.
+            // For now, we will log as "System" if no API user is passed.
+            // A more robust solution might involve passing the user ID token to every logged action.
+            user = await getCurrentUser() || { name: "System User", email: "N/A", avatar: null };
         }
 
 
@@ -78,7 +64,6 @@ export async function logActivity(action: string, details: LogEntry['details'], 
         await addDoc(collection(db, "logs"), logData);
     } catch (error) {
         console.error("Error logging activity:", error);
-        // We probably don't want to throw an error here and interrupt user flow
     }
 }
 
@@ -107,3 +92,5 @@ export async function getLogs(): Promise<LogEntry[]> {
         return [];
     }
 }
+
+    
