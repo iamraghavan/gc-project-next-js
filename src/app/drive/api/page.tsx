@@ -49,7 +49,7 @@ export default function ApiPage() {
      -H "Content-Type: text/plain" \\
      --data-binary "@/path/to/your/local/file.txt"`
   
-  const putCommand = `curl -X PUT "${endpointUrl}" \\
+  const putCommand = `curl -X POST "${endpointUrl}" \\
      -H "Authorization: Bearer ${apiKey}" \\
      -H "Content-Type: text/plain" \\
      --data-binary "@/path/to/your/local/file.txt"`
@@ -119,53 +119,80 @@ export default function ApiPage() {
               
               <Tabs defaultValue="post" className="w-full">
                 <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="post"><FileUp className="mr-2" />Create</TabsTrigger>
+                    <TabsTrigger value="post"><FileUp className="mr-2" />Create / Update</TabsTrigger>
                     <TabsTrigger value="get"><FileText className="mr-2"/>Read</TabsTrigger>
-                    <TabsTrigger value="put"><Pencil className="mr-2"/>Update</TabsTrigger>
                     <TabsTrigger value="delete"><Trash2 className="mr-2"/>Delete</TabsTrigger>
+                    <TabsTrigger value="put" disabled><Pencil className="mr-2"/>Other Methods</TabsTrigger>
                 </TabsList>
                 
                 <TabsContent value="post">
                     <div className="space-y-2 mt-4">
-                        <h3 className="font-semibold">Create a new file (POST)</h3>
-                        <p className="text-sm text-muted-foreground">Creates a new file at the specified path. If the file exists, it will be overwritten.</p>
+                        <h3 className="font-semibold">Create or Update a file (POST)</h3>
+                        <p className="text-sm text-muted-foreground">Creates a new file or updates an existing file at the specified path. A successful request returns a JSON object with the file's path and various CDN links.</p>
                         <div className="relative font-mono text-sm p-3 bg-secondary rounded-md">
                             <pre className="flex-1 break-all overflow-auto pr-10"><code>{postCommand}</code></pre>
                             <Button variant="ghost" size="icon" className="absolute top-2 right-2" onClick={() => handleCopy(postCommand, "cURL command copied!")}><Copy className="h-4 w-4" /></Button>
                         </div>
+                         <h4 className="font-medium pt-2">Example Success Response:</h4>
+                        <pre className="text-xs p-3 bg-secondary rounded-md overflow-auto"><code>{`{
+  "message": "File created successfully.",
+  "repo": "user/repo-name",
+  "path": "path/to/your/file.txt",
+  "links": {
+    "github_url": "https://github.com/user/repo-name/blob/main/path/to/your/file.txt",
+    "raw_url": "https://raw.githubusercontent.com/user/repo-name/main/path/to/your/file.txt",
+    "jsdelivr_url": "https://cdn.jsdelivr.net/gh/user/repo-name@main/path/to/your/file.txt"
+  }
+}`}</code></pre>
                     </div>
                 </TabsContent>
 
                  <TabsContent value="get">
                     <div className="space-y-2 mt-4">
                         <h3 className="font-semibold">Read file content (GET)</h3>
-                        <p className="text-sm text-muted-foreground">Retrieves the content of a file at the specified path. Note: Currently, our API endpoint is designed for uploads (POST). A dedicated GET endpoint would be structured like this.</p>
+                        <p className="text-sm text-muted-foreground">Retrieves the content of a file at the specified path, along with its metadata and CDN links.</p>
                         <div className="relative font-mono text-sm p-3 bg-secondary rounded-md">
                             <pre className="flex-1 break-all overflow-auto pr-10"><code>{getCommand}</code></pre>
                              <Button variant="ghost" size="icon" className="absolute top-2 right-2" onClick={() => handleCopy(getCommand, "cURL command copied!")}><Copy className="h-4 w-4" /></Button>
                         </div>
+                        <h4 className="font-medium pt-2">Example Success Response:</h4>
+                        <pre className="text-xs p-3 bg-secondary rounded-md overflow-auto"><code>{`{
+  "message": "File content retrieved successfully.",
+  "repo": "user/repo-name",
+  "path": "path/to/your/file.txt",
+  "size": 1234,
+  "sha": "f2f87132...",
+  "content": "This is the content of the file.",
+  "links": {
+    "github_url": "https://github.com/user/repo-name/blob/main/path/to/your/file.txt",
+    "raw_url": "https://raw.githubusercontent.com/user/repo-name/main/path/to/your/file.txt",
+    "jsdelivr_url": "https://cdn.jsdelivr.net/gh/user/repo-name@main/path/to/your/file.txt"
+  }
+}`}</code></pre>
                     </div>
                 </TabsContent>
 
                 <TabsContent value="put">
-                    <div className="space-y-2 mt-4">
-                        <h3 className="font-semibold">Update a file (PUT)</h3>
-                        <p className="text-sm text-muted-foreground">Updates an existing file. For the GitHub API, this is the same as creating a file, as it overwrites the content.</p>
-                        <div className="relative font-mono text-sm p-3 bg-secondary rounded-md">
-                            <pre className="flex-1 break-all overflow-auto pr-10"><code>{putCommand}</code></pre>
-                            <Button variant="ghost" size="icon" className="absolute top-2 right-2" onClick={() => handleCopy(putCommand, "cURL command copied!")}><Copy className="h-4 w-4" /></Button>
-                        </div>
+                     <div className="space-y-2 mt-4">
+                        <h3 className="font-semibold">Other Methods (PUT, PATCH)</h3>
+                        <p className="text-sm text-muted-foreground">For simplicity, this API uses `POST` for both creating and updating files. The GitHub API itself treats file creation and updates as a "put" operation (placing content at a path). Therefore, separate `PUT` or `PATCH` methods are not implemented in this specific API endpoint.</p>
                     </div>
                 </TabsContent>
 
                  <TabsContent value="delete">
                     <div className="space-y-2 mt-4">
                         <h3 className="font-semibold">Delete a file (DELETE)</h3>
-                        <p className="text-sm text-muted-foreground">Deletes a file at the specified path. Note: This requires a dedicated DELETE endpoint which is not yet implemented in the template.</p>
+                        <p className="text-sm text-muted-foreground">Deletes a file at the specified path. A successful request returns a confirmation message.</p>
                         <div className="relative font-mono text-sm p-3 bg-secondary rounded-md">
                             <pre className="flex-1 break-all overflow-auto pr-10"><code>{deleteCommand}</code></pre>
                             <Button variant="ghost" size="icon" className="absolute top-2 right-2" onClick={() => handleCopy(deleteCommand, "cURL command copied!")}><Copy className="h-4 w-4" /></Button>
                         </div>
+                         <h4 className="font-medium pt-2">Example Success Response:</h4>
+                        <pre className="text-xs p-3 bg-secondary rounded-md overflow-auto"><code>{`{
+  "message": "File deleted successfully.",
+  "repo": "user/repo-name",
+  "path": "path/to/your/file.txt"
+}`}</code></pre>
                     </div>
                 </TabsContent>
             </Tabs>
