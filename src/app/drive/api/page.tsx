@@ -78,12 +78,6 @@ export default function ApiPage() {
 
 
   const handleGenerateKey = async () => {
-    const user = auth.currentUser;
-    if (!user) {
-      toast({ title: "Failed to generate key", description: "You must be logged in to generate an API key.", variant: "destructive"})
-      return;
-    }
-
     setIsGenerating(true)
     try {
         await generateApiKey();
@@ -97,12 +91,6 @@ export default function ApiPage() {
   }
   
   const handleRevokeKey = async (keyId: string) => {
-     const user = auth.currentUser;
-    if (!user) {
-      toast({ title: "Failed to revoke key", description: "You must be logged in to revoke an API key.", variant: "destructive"})
-      return;
-    }
-
     try {
         await revokeApiKey(keyId);
         toast({ title: "API Key Revoked", description: "The key has been successfully deleted."});
@@ -269,5 +257,3 @@ export default function ApiPage() {
     </div>
   )
 }
-
-    
