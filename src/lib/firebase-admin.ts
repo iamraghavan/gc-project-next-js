@@ -18,7 +18,7 @@ if (!admin.apps.length && serviceAccount.project_id && serviceAccount.private_ke
   try {
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount as any),
-      databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}.firebaseio.com`
+      databaseURL: `https://{serviceAccount.project_id}.firebaseio.com`
     });
   } catch (error: any) {
      console.error("Firebase Admin initialization error:", error.message);

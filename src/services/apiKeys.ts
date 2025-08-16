@@ -33,7 +33,7 @@ function generateSecureApiKey(): string {
 // This is the single, reliable source for getting the user's UID from an ID token.
 async function getUserUidFromToken(idToken: string): Promise<string> {
     if (!authAdmin) {
-        throw new Error("Authentication service is not available.");
+        throw new Error("Authentication service is not available. Please configure server-side environment variables.");
     }
     if (!idToken) {
         throw new Error("Authentication token is missing.");

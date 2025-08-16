@@ -47,8 +47,6 @@ export default function ApiPage() {
     try {
       const user = auth.currentUser;
       if (!user) {
-          // Don't throw error, just indicate loading is done.
-          // The UI will show "No keys" which is correct for a logged-out user.
           setKeys([]);
           setIsLoadingKeys(false);
           return;
@@ -68,18 +66,15 @@ export default function ApiPage() {
       setBaseUrl(window.location.origin)
     }
     
-    // This listener ensures we fetch keys only when the user's auth state is confirmed.
     const unsubscribe = auth.onAuthStateChanged(user => {
       if (user) {
         fetchKeys();
       } else {
-        // User is logged out, clear keys and stop loading.
         setKeys([]);
         setIsLoadingKeys(false);
       }
     });
     
-    // Cleanup the listener on component unmount
     return () => unsubscribe();
   }, [fetchKeys])
 
@@ -91,7 +86,7 @@ export default function ApiPage() {
         if (!user) {
           throw new Error("You must be logged in to generate an API key.");
         }
-        const idToken = await user.getIdToken(true); // Force refresh the token
+        const idToken = await user.getIdToken(true);
         await generateApiKey(idToken);
         toast({ title: "API Key Generated", description: "Your new key is now available."});
         await fetchKeys(); 
