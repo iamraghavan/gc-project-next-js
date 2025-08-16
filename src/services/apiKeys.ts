@@ -1,7 +1,7 @@
 
 'use server'
 
-import { db } from '@/lib/firebase'
+import { db, auth } from '@/lib/firebase'
 import {
   collection,
   addDoc,
@@ -12,6 +12,7 @@ import {
   deleteDoc,
   doc,
   Timestamp,
+  getDoc,
 } from 'firebase/firestore'
 import { randomBytes } from 'crypto'
 import { type User } from 'firebase/auth'
@@ -29,14 +30,16 @@ function generateSecureApiKey(): string {
   return 'gitdrive_' + randomBytes(24).toString('hex')
 }
 
-async function getCurrentUser(idToken: string) {
+async function getCurrentUser(idToken: string): Promise<{uid: string} | null> {
     if (!authAdmin) return null;
+    if (!idToken) return null;
+
     try {
         const decodedToken = await authAdmin.verifyIdToken(idToken);
-        return decodedToken;
+        return { uid: decodedToken.uid };
     } catch (error) {
         console.error("Error verifying ID token:", error);
-        return null;
+        throw new Error("Invalid authentication token.");
     }
 }
 
@@ -85,9 +88,9 @@ export async function revokeApiKey(idToken: string, keyId: string): Promise<void
     }
     
     const keyDocRef = doc(db, 'apiKeys', keyId);
-    const keyDoc = await getDoc(keyDocRef);
+    const keyDocSnapshot = await getDoc(keyDocRef);
 
-    if (!keyDoc.exists() || keyDoc.data().userId !== user.uid) {
+    if (!keyDocSnapshot.exists() || keyDocSnapshot.data().userId !== user.uid) {
         throw new Error("API key not found or you don't have permission to revoke it.");
     }
 
@@ -139,5 +142,3 @@ export async function validateApiKey(key: string): Promise<{ isValid: boolean, u
     return { isValid: false, user: null }
   }
 }
-
-    

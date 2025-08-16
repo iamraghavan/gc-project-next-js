@@ -81,7 +81,7 @@ export default function ApiPage() {
     setIsGenerating(true)
     try {
         const user = auth.currentUser;
-        if (!user) throw new Error("You must be logged in.");
+        if (!user) throw new Error("You must be logged in to generate an API key.");
         const idToken = await user.getIdToken();
         await generateApiKey(idToken);
         toast({ title: "API Key Generated", description: "Your new key is now available."});
@@ -263,5 +263,3 @@ export default function ApiPage() {
     </div>
   )
 }
-
-    
