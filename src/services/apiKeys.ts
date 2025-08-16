@@ -1,7 +1,7 @@
 
 'use server'
 
-import { db, auth } from '@/lib/firebase'
+import { db } from '@/lib/firebase'
 import {
   collection,
   addDoc,
