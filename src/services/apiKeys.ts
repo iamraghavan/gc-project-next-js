@@ -5,6 +5,7 @@ import {
   Timestamp,
 } from 'firebase/firestore'
 import { auth } from '@/lib/firebase';
+import { type User } from 'firebase/auth'
 
 export interface ApiKey {
   id: string;
@@ -17,35 +18,27 @@ export interface ApiKey {
 async function callKeyApi(endpoint: string, method: 'GET' | 'POST' = 'GET', body?: any) {
     const user = auth.currentUser;
     if (!user) {
-        // This check is a safeguard, but the token check below is the primary gate.
         throw new Error("You must be logged in to manage API keys.");
     }
     
-    try {
-        const token = await user.getIdToken();
+    const token = await user.getIdToken();
 
-        const response = await fetch(endpoint, {
-            method: method,
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-            },
-            body: body ? JSON.stringify(body) : undefined,
-        });
+    const response = await fetch(endpoint, {
+        method: method,
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+        },
+        body: body ? JSON.stringify(body) : undefined,
+    });
 
-        const result = await response.json();
+    const result = await response.json();
 
-        if (!response.ok) {
-            throw new Error(result.error || `Failed to call ${endpoint}`);
-        }
-        
-        return result;
-
-    } catch (error) {
-        // This will catch errors from getIdToken() if the user is truly not logged in.
-        console.error("Auth Error in callKeyApi:", error);
-        throw new Error("You must be logged in to manage API keys.");
+    if (!response.ok) {
+        throw new Error(result.error || `Failed to call ${endpoint}`);
     }
+    
+    return result;
 }
 
 
@@ -75,7 +68,13 @@ export async function revokeApiKey(keyId: string): Promise<{ success: boolean }>
 
 // This server-side function is for the public file upload API endpoint to use, not the client app
 import { dbAdmin, authAdmin } from '@/lib/firebase-admin';
-import { type User } from 'firebase/auth'
+
+export interface ApiUser {
+    uid: string;
+    displayName: string;
+    email: string;
+    photoURL: string | null;
+}
 
 // Validate an API key and get the associated user info
 export async function validateApiKey(key: string): Promise<{ isValid: boolean, user: ApiUser | null }> {

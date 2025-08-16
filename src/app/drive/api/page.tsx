@@ -48,6 +48,7 @@ export default function ApiPage() {
       const user = auth.currentUser;
       if (!user) {
           setKeys([]);
+          setIsLoadingKeys(false);
           return;
       }
       const userKeys = await getApiKeys()
