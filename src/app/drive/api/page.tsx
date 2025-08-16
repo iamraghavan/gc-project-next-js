@@ -9,164 +9,54 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Server, KeyRound, PlusCircle, Trash2, Eye, EyeOff } from "lucide-react"
+import { Server, KeyRound, Copy, Eye, EyeOff, FileText, FileUp, Pencil, Trash2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import RepoSwitcher from "@/components/repo-switcher"
 import { type Repository } from "@/services/github"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { format } from "date-fns"
-import { auth } from "@/lib/firebase"
-import { Copy } from "lucide-react"
-import { Timestamp } from "firebase/firestore"
-import type { User } from "firebase/auth"
-
-export interface ApiKey {
-  id: string;
-  key: string;
-  userId: string;
-  createdAt: Timestamp;
-}
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function ApiPage() {
   const { toast } = useToast()
   const [baseUrl, setBaseUrl] = React.useState("")
   const [selectedRepo, setSelectedRepo] = React.useState<Repository | null>(null)
   const [path, setPath] = React.useState("path/to/your/file.txt")
-
-  const [keys, setKeys] = React.useState<ApiKey[]>([])
-  const [isLoadingKeys, setIsLoadingKeys] = React.useState(true)
-  const [isGenerating, setIsGenerating] = React.useState(false)
-  const [visibleKey, setVisibleKey] = React.useState<string | null>(null)
-
-  const fetchKeys = React.useCallback(async (user: User | null) => {
-    if (!user) {
-        setKeys([]);
-        setIsLoadingKeys(false);
-        return;
-    }
-    setIsLoadingKeys(true);
-    try {
-      const token = await user.getIdToken(true);
-      const response = await fetch('/api/keys/get', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch API keys.');
-      }
-      
-      const userKeys = (data.keys || []).map((key: any) => ({
-        ...key,
-        createdAt: new Timestamp(key.createdAt._seconds, key.createdAt._nanoseconds)
-      }));
-      setKeys(userKeys);
-    } catch (error) {
-      toast({ title: "Error fetching API keys", description: (error as Error).message, variant: "destructive"})
-    } finally {
-      setIsLoadingKeys(false)
-    }
-  }, [toast])
+  const [apiKey, setApiKey] = React.useState("bumblebees-bxkl50bygE4hB4YntB6hvoJ9a6eoa")
+  const [isKeyVisible, setIsKeyVisible] = React.useState(false)
 
   React.useEffect(() => {
     if (typeof window !== "undefined") {
       setBaseUrl(window.location.origin)
     }
-    
-    const unsubscribe = auth.onAuthStateChanged(user => {
-      fetchKeys(user);
-    });
-    
-    return () => unsubscribe();
-  }, [fetchKeys])
-
-
-  const handleGenerateKey = async () => {
-    const user = auth.currentUser;
-    if (!user) {
-        toast({ title: "Failed to generate key", description: "You must be logged in to generate an API key.", variant: "destructive"})
-        return;
-    }
-    setIsGenerating(true)
-    try {
-        const token = await user.getIdToken(true);
-        const response = await fetch('/api/keys/generate', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}` },
-        });
-        const result = await response.json();
-        if (!response.ok) {
-            throw new Error(result.error || 'Failed to generate key');
-        }
-
-        toast({ title: "API Key Generated", description: "Your new key is now available."});
-        await fetchKeys(user); 
-    } catch (error) {
-        toast({ title: "Failed to generate key", description: (error as Error).message, variant: "destructive"})
-    } finally {
-        setIsGenerating(false)
-    }
-  }
+  }, [])
   
-  const handleRevokeKey = async (keyId: string) => {
-    const user = auth.currentUser;
-    if (!user) {
-        toast({ title: "Failed to revoke key", description: "You must be logged in.", variant: "destructive"})
-        return;
-    }
-    try {
-        const token = await user.getIdToken(true);
-        const response = await fetch('/api/keys/revoke', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ keyId }),
-        });
-        const result = await response.json();
-        if (!response.ok) {
-            throw new Error(result.error || 'Failed to revoke key');
-        }
-
-        toast({ title: "API Key Revoked", description: "The key has been successfully deleted."});
-        await fetchKeys(user);
-    } catch (error) {
-        toast({ title: "Failed to revoke key", description: (error as Error).message, variant: "destructive"})
-    }
-  }
-
-  const exampleUrl = `${baseUrl}/api/upload/${selectedRepo?.full_name || '{OWNER}/{REPO}'}/${path}`
-  const curlCommand = `curl -X POST "${exampleUrl}" \\
-     -H "Authorization: Bearer {YOUR_API_KEY}" \\
-     -H "Content-Type: text/plain" \\
-     --data-binary "@/path/to/your/local/file.txt"`
-
-  const handleCopy = (text: string) => {
+  const handleCopy = (text: string, message: string) => {
     navigator.clipboard.writeText(text)
     toast({
-      title: "Copied to clipboard!",
+      title: message,
     })
   }
 
-  const toggleVisibility = (keyId: string) => {
-    if (visibleKey === keyId) {
-        setVisibleKey(null)
-    } else {
-        setVisibleKey(keyId)
-    }
-  }
+  const endpointUrl = `${baseUrl}/api/upload/${selectedRepo?.full_name || '{OWNER}/{REPO}'}/${path}`
+  
+  const getCommand = `curl "${endpointUrl}" \\
+     -H "Authorization: Bearer ${apiKey}"`
+
+  const postCommand = `curl -X POST "${endpointUrl}" \\
+     -H "Authorization: Bearer ${apiKey}" \\
+     -H "Content-Type: text/plain" \\
+     --data-binary "@/path/to/your/local/file.txt"`
+  
+  const putCommand = `curl -X PUT "${endpointUrl}" \\
+     -H "Authorization: Bearer ${apiKey}" \\
+     -H "Content-Type: text/plain" \\
+     --data-binary "@/path/to/your/local/file.txt"`
+
+  const deleteCommand = `curl -X DELETE "${endpointUrl}" \\
+     -H "Authorization: Bearer ${apiKey}"`
+
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
@@ -174,133 +64,113 @@ export default function ApiPage() {
         <h2 className="text-3xl font-bold tracking-tight">API Access</h2>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <Card>
-            <CardHeader>
-                <div className="flex items-center gap-4">
-                <div className="p-3 bg-primary/10 rounded-lg">
-                    <Server className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                    <CardTitle>File Upload Endpoint</CardTitle>
-                    <CardDescription>
-                    Build your API endpoint to upload files.
-                    </CardDescription>
-                </div>
-                </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-                <div className="space-y-2">
-                    <Label htmlFor="repo-switcher">1. Select Repository</Label>
-                    <RepoSwitcher onRepoChange={setSelectedRepo} />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="path">2. Define File Path</Label>
-                    <Input id="path" value={path} onChange={(e) => setPath(e.target.value)} />
-                </div>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-primary/10 rounded-lg">
+              <KeyRound className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <CardTitle>Your API Key</CardTitle>
+              <CardDescription>
+                Use this key to authenticate your API requests. Keep it secure.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+           <div className="flex items-center gap-2">
+              <Input readOnly value={isKeyVisible ? apiKey : "************************************************************"} className="font-mono"/>
+              <Button variant="outline" size="icon" onClick={() => setIsKeyVisible(!isKeyVisible)}>
+                {isKeyVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+              <Button variant="outline" size="icon" onClick={() => handleCopy(apiKey, "API Key copied to clipboard!")}>
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+        </CardContent>
+      </Card>
 
-                <div className="space-y-2">
-                    <h3 className="font-semibold">Your Generated Endpoint URL</h3>
-                    <div className="flex items-center gap-2 font-mono text-sm p-3 bg-secondary rounded-md">
-                    <span className="flex-1 break-all">
-                        POST {exampleUrl}
-                    </span>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleCopy(exampleUrl)}
-                    >
-                        <Copy className="h-4 w-4" />
-                    </Button>
+
+      <Card>
+          <CardHeader>
+              <div className="flex items-center gap-4">
+              <div className="p-3 bg-primary/10 rounded-lg">
+                  <Server className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                  <CardTitle>API Endpoint Documentation</CardTitle>
+                  <CardDescription>
+                  Use the following endpoints to interact with your files.
+                  </CardDescription>
+              </div>
+              </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+              <div className="space-y-2">
+                  <Label htmlFor="repo-switcher">1. Select a Repository</Label>
+                  <RepoSwitcher onRepoChange={setSelectedRepo} />
+              </div>
+              <div className="space-y-2">
+                  <Label htmlFor="path">2. Define a Target File Path</Label>
+                  <Input id="path" value={path} onChange={(e) => setPath(e.target.value)} />
+              </div>
+              <p className="text-sm text-muted-foreground pt-4">Your base endpoint URL is: <code className="font-mono bg-secondary p-1 rounded-md">{`${baseUrl}/api/upload/${selectedRepo?.full_name || '{OWNER}/{REPO}'}/{YOUR_FILE_PATH}`}</code></p>
+              
+              <Tabs defaultValue="post" className="w-full">
+                <TabsList className="grid w-full grid-cols-4">
+                    <TabsTrigger value="post"><FileUp className="mr-2" />Create</TabsTrigger>
+                    <TabsTrigger value="get"><FileText className="mr-2"/>Read</TabsTrigger>
+                    <TabsTrigger value="put"><Pencil className="mr-2"/>Update</TabsTrigger>
+                    <TabsTrigger value="delete"><Trash2 className="mr-2"/>Delete</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="post">
+                    <div className="space-y-2 mt-4">
+                        <h3 className="font-semibold">Create a new file (POST)</h3>
+                        <p className="text-sm text-muted-foreground">Creates a new file at the specified path. If the file exists, it will be overwritten.</p>
+                        <div className="relative font-mono text-sm p-3 bg-secondary rounded-md">
+                            <pre className="flex-1 break-all overflow-auto pr-10"><code>{postCommand}</code></pre>
+                            <Button variant="ghost" size="icon" className="absolute top-2 right-2" onClick={() => handleCopy(postCommand, "cURL command copied!")}><Copy className="h-4 w-4" /></Button>
+                        </div>
                     </div>
-                </div>
+                </TabsContent>
 
-                <div className="space-y-2">
-                    <h3 className="font-semibold">Example Usage (cURL)</h3>
-                    <div className="relative font-mono text-sm p-3 bg-secondary rounded-md">
-                    <pre className="flex-1 break-all overflow-auto pr-10">
-                        <code>{curlCommand}</code>
-                    </pre>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="absolute top-2 right-2"
-                        onClick={() => handleCopy(curlCommand)}
-                    >
-                        <Copy className="h-4 w-4" />
-                    </Button>
+                 <TabsContent value="get">
+                    <div className="space-y-2 mt-4">
+                        <h3 className="font-semibold">Read file content (GET)</h3>
+                        <p className="text-sm text-muted-foreground">Retrieves the content of a file at the specified path. Note: Currently, our API endpoint is designed for uploads (POST). A dedicated GET endpoint would be structured like this.</p>
+                        <div className="relative font-mono text-sm p-3 bg-secondary rounded-md">
+                            <pre className="flex-1 break-all overflow-auto pr-10"><code>{getCommand}</code></pre>
+                             <Button variant="ghost" size="icon" className="absolute top-2 right-2" onClick={() => handleCopy(getCommand, "cURL command copied!")}><Copy className="h-4 w-4" /></Button>
+                        </div>
                     </div>
-                </div>
-            </CardContent>
-        </Card>
+                </TabsContent>
 
-        <Card>
-            <CardHeader>
-                <div className="flex items-center gap-4">
-                <div className="p-3 bg-primary/10 rounded-lg">
-                    <KeyRound className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                    <CardTitle>API Keys</CardTitle>
-                    <CardDescription>
-                        Manage API keys to use with the upload endpoint.
-                    </CardDescription>
-                </div>
-                </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                 <Button onClick={handleGenerateKey} disabled={isGenerating}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    {isGenerating ? "Generating..." : "Generate New Key"}
-                 </Button>
+                <TabsContent value="put">
+                    <div className="space-y-2 mt-4">
+                        <h3 className="font-semibold">Update a file (PUT)</h3>
+                        <p className="text-sm text-muted-foreground">Updates an existing file. For the GitHub API, this is the same as creating a file, as it overwrites the content.</p>
+                        <div className="relative font-mono text-sm p-3 bg-secondary rounded-md">
+                            <pre className="flex-1 break-all overflow-auto pr-10"><code>{putCommand}</code></pre>
+                            <Button variant="ghost" size="icon" className="absolute top-2 right-2" onClick={() => handleCopy(putCommand, "cURL command copied!")}><Copy className="h-4 w-4" /></Button>
+                        </div>
+                    </div>
+                </TabsContent>
 
-                <div className="border rounded-lg">
-                 <Table>
-                    <TableHeader>
-                        <TableRow>
-                        <TableHead>Key</TableHead>
-                        <TableHead>Created</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {isLoadingKeys ? (
-                            Array.from({length: 2}).map((_, i) => (
-                                <TableRow key={i}>
-                                    <TableCell><Skeleton className="h-4 w-3/4" /></TableCell>
-                                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                                    <TableCell className="text-right"><Skeleton className="h-8 w-8 inline-block" /></TableCell>
-                                </TableRow>
-                            ))
-                        ) : keys.map(key => (
-                            <TableRow key={key.id}>
-                                <TableCell className="font-mono">
-                                    <div className="flex items-center gap-2">
-                                        <span>{visibleKey === key.id ? key.key : `${key.key.substring(0, 8)}...`}</span>
-                                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => toggleVisibility(key.id)}>
-                                            {visibleKey === key.id ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                        </Button>
-                                    </div>
-                                </TableCell>
-                                <TableCell>{format(new Date(key.createdAt.seconds * 1000), 'PPP')}</TableCell>
-                                <TableCell className="text-right">
-                                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleRevokeKey(key.id)}>
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                         {!isLoadingKeys && keys.length === 0 && (
-                            <TableRow>
-                                <TableCell colSpan={3} className="text-center h-24">No API keys found. You can generate one.</TableCell>
-                            </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
-                </div>
-            </CardContent>
-        </Card>
-      </div>
+                 <TabsContent value="delete">
+                    <div className="space-y-2 mt-4">
+                        <h3 className="font-semibold">Delete a file (DELETE)</h3>
+                        <p className="text-sm text-muted-foreground">Deletes a file at the specified path. Note: This requires a dedicated DELETE endpoint which is not yet implemented in the template.</p>
+                        <div className="relative font-mono text-sm p-3 bg-secondary rounded-md">
+                            <pre className="flex-1 break-all overflow-auto pr-10"><code>{deleteCommand}</code></pre>
+                            <Button variant="ghost" size="icon" className="absolute top-2 right-2" onClick={() => handleCopy(deleteCommand, "cURL command copied!")}><Copy className="h-4 w-4" /></Button>
+                        </div>
+                    </div>
+                </TabsContent>
+            </Tabs>
+          </CardContent>
+      </Card>
     </div>
   )
 }

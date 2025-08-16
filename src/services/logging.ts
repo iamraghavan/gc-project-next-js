@@ -2,8 +2,7 @@
 'use server';
 
 import { db, auth } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, getDocs, query, orderBy, getDoc } from "firebase/firestore";
-import { headers } from 'next/headers'
+import { collection, addDoc, serverTimestamp, getDocs, query, orderBy } from "firebase/firestore";
 
 // This allows us to log actions from an API user who isn't the currently signed-in Firebase user
 export interface ApiUser {
@@ -20,23 +19,27 @@ export interface LogEntry {
     details: {
         repoFullName: string;
         path: string;
-        [key: string]: any;
+        [key:string]: any;
     };
     timestamp: Date;
 }
 
 async function getCurrentUser(): Promise<ApiUser | null> {
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-        return {
-            name: currentUser.displayName,
-            email: currentUser.email,
-            avatar: currentUser.photoURL,
-            uid: currentUser.uid,
-        };
-    }
-    // Handle case for anonymous users if necessary
-    return null;
+    return new Promise((resolve) => {
+        const unsubscribe = auth.onAuthStateChanged(user => {
+            unsubscribe();
+            if (user) {
+                resolve({
+                    name: user.displayName,
+                    email: user.email,
+                    avatar: user.photoURL,
+                    uid: user.uid,
+                });
+            } else {
+                resolve(null);
+            }
+        });
+    });
 }
 
 export async function logActivity(action: string, details: LogEntry['details'], apiUser?: ApiUser) {
@@ -44,16 +47,12 @@ export async function logActivity(action: string, details: LogEntry['details'], 
         let user: ApiUser | null = null;
 
         if (apiUser) {
-            // If an API user is explicitly passed (e.g., from an API key), use that.
             user = apiUser;
         } else {
-            // Otherwise, determine the user from the session.
-            // This is now tricky because server actions don't have direct access to client auth state.
-            // For now, we will log as "System" if no API user is passed.
-            // A more robust solution might involve passing the user ID token to every logged action.
+            // Because server actions can be invoked without a full page load,
+            // we must get the current user asynchronously.
             user = await getCurrentUser() || { name: "System User", email: "N/A", avatar: null };
         }
-
 
         const logData = {
             user,
@@ -92,5 +91,3 @@ export async function getLogs(): Promise<LogEntry[]> {
         return [];
     }
 }
-
-    

@@ -14,7 +14,7 @@ export async function POST(
     }
     const apiKey = authHeader.split(" ")[1];
 
-    const { isValid, user } = await validateApiKey(apiKey);
+    const isValid = await validateApiKey(apiKey);
     if (!isValid) {
       return NextResponse.json({ error: "Unauthorized: Invalid API key." }, { status: 401 });
     }
@@ -51,8 +51,7 @@ export async function POST(
     
     const contentAsBase64 = Buffer.from(fileContent).toString('base64');
     
-    // Pass the user information to the upload function for logging purposes
-    await uploadFile(repoFullName, path, contentAsBase64, `File upload by ${user?.name || user?.uid} via API`);
+    await uploadFile(repoFullName, path, contentAsBase64, `File upload via API`);
 
     return NextResponse.json(
       {
@@ -74,4 +73,3 @@ export async function POST(
     );
   }
 }
-
