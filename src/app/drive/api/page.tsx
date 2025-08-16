@@ -57,7 +57,7 @@ export default function ApiPage() {
     }
     setIsLoadingKeys(true);
     try {
-      const token = await user.getIdToken();
+      const token = await user.getIdToken(true);
       const response = await fetch('/api/keys/get', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -100,7 +100,7 @@ export default function ApiPage() {
     }
     setIsGenerating(true)
     try {
-        const token = await user.getIdToken();
+        const token = await user.getIdToken(true);
         const response = await fetch('/api/keys/generate', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` },
@@ -126,7 +126,7 @@ export default function ApiPage() {
         return;
     }
     try {
-        const token = await user.getIdToken();
+        const token = await user.getIdToken(true);
         const response = await fetch('/api/keys/revoke', {
             method: 'POST',
             headers: {
