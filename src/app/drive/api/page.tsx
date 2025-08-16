@@ -29,6 +29,7 @@ import { format } from "date-fns"
 import { auth } from "@/lib/firebase"
 import { Copy } from "lucide-react"
 import { Timestamp } from "firebase/firestore"
+import type { User } from "firebase/auth"
 
 export interface ApiKey {
   id: string;
@@ -48,15 +49,13 @@ export default function ApiPage() {
   const [isGenerating, setIsGenerating] = React.useState(false)
   const [visibleKey, setVisibleKey] = React.useState<string | null>(null)
 
-  const fetchKeys = React.useCallback(async () => {
-    setIsLoadingKeys(true);
-    const user = auth.currentUser;
+  const fetchKeys = React.useCallback(async (user: User | null) => {
     if (!user) {
         setKeys([]);
         setIsLoadingKeys(false);
         return;
     }
-
+    setIsLoadingKeys(true);
     try {
       const token = await user.getIdToken();
       const response = await fetch('/api/keys/get', {
@@ -86,12 +85,7 @@ export default function ApiPage() {
     }
     
     const unsubscribe = auth.onAuthStateChanged(user => {
-      if (user) {
-        fetchKeys();
-      } else {
-        setKeys([]);
-        setIsLoadingKeys(false);
-      }
+      fetchKeys(user);
     });
     
     return () => unsubscribe();
@@ -117,7 +111,7 @@ export default function ApiPage() {
         }
 
         toast({ title: "API Key Generated", description: "Your new key is now available."});
-        await fetchKeys(); 
+        await fetchKeys(user); 
     } catch (error) {
         toast({ title: "Failed to generate key", description: (error as Error).message, variant: "destructive"})
     } finally {
@@ -147,7 +141,7 @@ export default function ApiPage() {
         }
 
         toast({ title: "API Key Revoked", description: "The key has been successfully deleted."});
-        await fetchKeys();
+        await fetchKeys(user);
     } catch (error) {
         toast({ title: "Failed to revoke key", description: (error as Error).message, variant: "destructive"})
     }
@@ -298,7 +292,7 @@ export default function ApiPage() {
                         ))}
                          {!isLoadingKeys && keys.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={3} className="text-center h-24">No API keys found.</TableCell>
+                                <TableCell colSpan={3} className="text-center h-24">No API keys found. You can generate one.</TableCell>
                             </TableRow>
                         )}
                     </TableBody>
