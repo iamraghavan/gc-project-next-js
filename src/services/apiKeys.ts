@@ -17,38 +17,50 @@ export interface ApiKey {
 async function callKeyApi(endpoint: string, method: 'GET' | 'POST' = 'GET', body?: any) {
     const user = auth.currentUser;
     if (!user) {
+        // This check is a safeguard, but the token check below is the primary gate.
         throw new Error("You must be logged in to manage API keys.");
     }
-    const token = await user.getIdToken();
-
-    const response = await fetch(endpoint, {
-        method: method,
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body)
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-        throw new Error(result.error || `Failed to call ${endpoint}`);
-    }
     
-    return result;
+    try {
+        const token = await user.getIdToken();
+
+        const response = await fetch(endpoint, {
+            method: method,
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: body ? JSON.stringify(body) : undefined,
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || `Failed to call ${endpoint}`);
+        }
+        
+        return result;
+
+    } catch (error) {
+        // This will catch errors from getIdToken() if the user is truly not logged in.
+        console.error("Auth Error in callKeyApi:", error);
+        throw new Error("You must be logged in to manage API keys.");
+    }
 }
 
 
 // Create a new API key for the current user
-export async function generateApiKey(): Promise<{ success: boolean }> {
+export async function generateApiKey(): Promise<{ success: boolean; key: string }> {
   return callKeyApi('/api/keys/generate', 'POST');
 }
 
 // Get all API keys for the current user
 export async function getApiKeys(): Promise<ApiKey[]> {
     const data = await callKeyApi('/api/keys/get') as any;
-    // Timestamps from API routes are serialized as strings, so we need to convert them
+    if (!data.keys) {
+        return [];
+    }
+    // Timestamps from API routes are serialized, so we need to convert them back
     return data.keys.map((key: any) => ({
         ...key,
         createdAt: new Timestamp(key.createdAt._seconds, key.createdAt._nanoseconds)
@@ -66,7 +78,7 @@ import { dbAdmin, authAdmin } from '@/lib/firebase-admin';
 import { type User } from 'firebase/auth'
 
 // Validate an API key and get the associated user info
-export async function validateApiKey(key: string): Promise<{ isValid: boolean, user: User | null }> {
+export async function validateApiKey(key: string): Promise<{ isValid: boolean, user: ApiUser | null }> {
   if (!authAdmin || !dbAdmin) {
     console.error("Firebase Admin SDK not initialized. Cannot validate API key.");
     return { isValid: false, user: null };
@@ -84,26 +96,15 @@ export async function validateApiKey(key: string): Promise<{ isValid: boolean, u
     
     const userRecord = await authAdmin.getUser(apiKeyData.userId);
 
-     const user: User = {
+     const user: ApiUser = {
       uid: userRecord.uid,
       displayName: userRecord.displayName || `API User`,
       email: userRecord.email || 'N/A',
       photoURL: userRecord.photoURL || null,
-      providerId: 'api',
-      emailVerified: true,
-      isAnonymous: false,
-      metadata: {},
-      providerData: [],
-      tenantId: null,
-      delete: async () => {},
-      getIdToken: async () => '',
-      getIdTokenResult: async () => ({} as any),
-      reload: async () => {},
-      toJSON: () => ({}),
     };
 
 
-    return { isValid: true, user }
+    return { isValid: true, user: user as any }
   } catch (error) {
     console.error("Error validating API key:", error)
     return { isValid: false, user: null }

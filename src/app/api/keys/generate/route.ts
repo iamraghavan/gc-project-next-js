@@ -31,6 +31,9 @@ export async function POST(request: Request) {
 
   } catch (error: any) {
     console.error('Error generating API key:', error);
+    if (error.code === 'auth/id-token-expired') {
+        return NextResponse.json({ error: 'Authentication token has expired. Please log in again.' }, { status: 401 });
+    }
     return NextResponse.json({ error: 'Failed to generate key: ' + error.message }, { status: 500 });
   }
 }
